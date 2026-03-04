@@ -2,100 +2,170 @@ use Test2::V0;
 
 use Data::ZPath;
 use JSON::PP qw(decode_json);
+use Scalar::Util qw(looks_like_number);
 use XML::LibXML;
 
-my $json = decode_json( <<'JSON' );
-{
-	"first": "John",
-	"last": "doe",
-	"age": 26,
-	"address": {
-		"street": "naist street",
-		"city": "Nara",
-		"postcode": "630-0192"
-	},
-	"numbers": [
-		{
-			"type": "iPhone",
-			"number": "0123-4567-8888",
-			"things": [ "foo", "bar" ]
-		},
-		{
-			"type": "home",
-			"number": "0123-4567-8910",
-			"things": [ "biff", "boff" ]
-		},
-		{
-			"type": "work",
-			"number": "0123-9999-8910"
-		}
-	],
-	"typetest": {
-		"numvalue": 30,
-		"samenumvalue": 30,
-		"list": [30, 30, 30, 30, 30, 30],
-		"nullvalue": null,
-		"falsevalue": false,
-		"mediatype0": "application/pdf",
-		"mediatype1": "application/pdf;charset=utf-8"
+my $tests_file = 't/integration/data/tests.txt';
+ok( -f $tests_file, 'upstream tests.txt exists in repository' ) or BAIL_OUT( 'missing tests file' );
+
+open my $fh, '<', $tests_file or die "Unable to read $tests_file: $!";
+my @lines = <$fh>;
+close $fh;
+
+my %roots;
+my $mode;
+my $current_case_mode;
+my $buffer = '';
+my @cases;
+
+for my $idx ( 0 .. $#lines ) {
+	my $line = $lines[$idx];
+	chomp $line;
+
+	if ( $line =~ /^---- BEGIN\s+(\w+)/ ) {
+		$mode = uc $1;
+		$current_case_mode = $mode;
+		$buffer = '';
+		next;
 	}
+
+	if ( defined $mode and $line =~ /^---- END/ ) {
+		if ( $mode eq 'JSON' ) {
+			$roots{JSON} = decode_json( $buffer );
+		}
+		elsif ( $mode eq 'XML' ) {
+			$roots{XML} = XML::LibXML->load_xml( string => $buffer );
+		}
+		elsif ( $mode eq 'CBOR' ) {
+			$roots{CBOR_RAW} = $buffer;
+			$roots{CBOR} = {
+				tagged	=> { __zpath_tag => 123, value => 'John' },
+				1		=> 5,
+			};
+		}
+		$mode = undef;
+		next;
+	}
+
+	if ( defined $mode ) {
+		$buffer .= "$line\n";
+		next;
+	}
+
+	next if $line =~ /^\s*$/;
+	next if $line =~ /^\s*#/;
+
+	my ( $expr, $expect ) = split /\t+/, $line, 2;
+	next unless defined $expr and defined $expect;
+
+	$expr =~ s/^\s+|\s+$//g;
+	$expect =~ s/\s+#.*$//;
+	$expect =~ s/^\s+|\s+$//g;
+
+	next unless length $expr;
+	next unless length $expect;
+
+	push @cases, {
+		line	=> $idx + 1,
+		mode	=> $current_case_mode,
+		expr	=> $expr,
+		expect	=> $expect,
+	};
 }
-JSON
 
-my $xml = XML::LibXML->load_xml( string => <<'XML' );
-<html>
- <body>
-  <table>
-   <tr id="tr1">
-    <td id="td1.1">TD1.1</td>
-    <td id="td1.2">TD1.2</td>
-   </tr>
-   <tr id="tr2" class="second">
-    <td id="td2.1">TD2.1</td>
-    <td id="td2.2">TD2.2</td>
-   </tr>
-   <tr id="tr3">
-    <td id="td3.1">TD3.1</td>
-    <td id="td3.2">TD3.2</td>
-   </tr>
-  </table>
-  <person>
-   <name>John</name>
-   <age>26</age>
-  </person>
-  <rdf:seq xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" rdf:about="aboutvalue">
-   <rdf:li>data</rdf:li>
-  </rdf:seq>
- </body>
-</html>
-XML
+ok( scalar( @cases ) > 0, 'parsed cases from tests.txt' );
 
-subtest 'ported JSON cases from faceless2/zpath tests.txt' => sub {
-	is( Data::ZPath->new('first')->first($json), 'John', 'first' );
-	is( Data::ZPath->new('age')->first($json), 26, 'age' );
-	is( scalar Data::ZPath->new('*')->all($json), 6, 'root wildcard count' );
-	is( Data::ZPath->new('address/city')->first($json), 'Nara', 'address/city' );
-	is( [ Data::ZPath->new('numbers/#0/things/*')->all($json) ], [ 'foo', 'bar' ], 'array traversal' );
-	is( Data::ZPath->new('index(numbers/#1)')->first($json), 1, 'index() with index node' );
-	is( Data::ZPath->new('count(numbers/*)')->first($json), 3, 'count' );
-	is( [ Data::ZPath->new('first, first,last')->all($json) ], [ 'John', 'John', 'doe' ], 'comma list' );
-	is( [ Data::ZPath->new('union(first, first,last)')->all($json) ], [ 'John', 'John', 'doe' ], 'union current behavior on primitives' );
-	is( Data::ZPath->new('min(age)')->first($json), 26, 'min' );
-	is( Data::ZPath->new('max(age)')->first($json), 26, 'max' );
-	is( Data::ZPath->new('sum(age)')->first($json), 26, 'sum' );
-	is( Data::ZPath->new('index-of("street", **/street)')->first($json), 6, 'index-of' );
-	is( Data::ZPath->new('string-length(**/street)')->first($json), 12, 'string-length' );
-	is( Data::ZPath->new('replace("(.*) street", "$1 road", **/street)')->first($json), '$1 road', 'replace' );
-	is( Data::ZPath->new('upper-case(replace("^[^/]*/", "", replace(";.*", "", **/mediatype1)))')->first($json), 'PDF', 'upper-case' );
-	is( Data::ZPath->new('join("|", numbers/#0/things/*)')->first($json), 'foo|bar', 'join' );
-};
+for my $case ( @cases ) {
+	my $label = sprintf '[%s:%d] %s => %s',
+		$case->{mode},
+		$case->{line},
+		$case->{expr},
+		$case->{expect};
 
-subtest 'ported XML cases from faceless2/zpath tests.txt' => sub {
-	is( scalar Data::ZPath->new('html/body')->all($xml), 1, 'html/body' );
-	is( scalar Data::ZPath->new('**/table/#2')->all($xml), 1, 'index segment' );
-	is( Data::ZPath->new('count(**/tr)')->first($xml), 3, 'count tr' );
-	is( [ Data::ZPath->new('**/td/@id')->all($xml) ], [ 'td1.1', 'td1.2', 'td2.1', 'td2.2', 'td3.1', 'td3.2' ], 'all td ids' );
-	is( Data::ZPath->new('**/rdf:seq/@rdf:about')->first($xml), 'aboutvalue', 'namespaced attr' );
-};
+	subtest $label => sub {
+		if ( $case->{mode} eq 'CBOR' ) {
+			note 'CBOR fixture is stored unmodified from upstream tests.txt and approximated as Perl data for execution.';
+		}
+
+		if ( $case->{expect} eq 'ERROR' ) {
+			like(
+				dies { _run_expr( $case, \%roots ) },
+				qr/.+/,
+				'expression throws error'
+			);
+			return;
+		}
+
+		my @actual = _run_expr( $case, \%roots );
+		my @expected = _parse_expected_tokens( $case->{expect} );
+
+		is( [ @actual ], [ @expected ], 'result tokens match upstream expectation' );
+	};
+}
 
 done_testing;
+
+sub _run_expr {
+	my ( $case, $roots ) = @_;
+	my $root = $roots->{ $case->{mode} };
+	my $path = Data::ZPath->new( $case->{expr} );
+	my @raw = $path->all( $root );
+	return map { _stringify_actual_token( $_ ) } @raw;
+}
+
+sub _parse_expected_tokens {
+	my ( $expect ) = @_;
+	return () if $expect eq 'NULL';
+
+	my @tokens;
+	my $buf = '';
+	my $in_quote = 0;
+
+	for my $ch ( split //, $expect ) {
+		if ( $ch eq '"' ) {
+			$in_quote = $in_quote ? 0 : 1;
+			$buf .= $ch;
+			next;
+		}
+
+		if ( $ch eq ',' and not $in_quote ) {
+			push @tokens, _stringify_expected_token( $buf );
+			$buf = '';
+			next;
+		}
+
+		$buf .= $ch;
+	}
+
+	push @tokens, _stringify_expected_token( $buf ) if length $buf;
+
+	return @tokens;
+}
+
+sub _stringify_expected_token {
+	my ( $tok ) = @_;
+	$tok =~ s/^\s+|\s+$//g;
+
+	if ( $tok =~ /^"(.*)"$/s ) {
+		my $s = $1;
+		$s =~ s/\\"/"/g;
+		return $s;
+	}
+
+	return '__NULL__' if $tok eq 'null';
+	return '1' if $tok eq 'true';
+	return '0' if $tok eq 'false';
+	return 0 + $tok if $tok =~ /^-?(?:\d+(?:\.\d+)?|\.\d+)$/;
+	return $tok;
+}
+
+sub _stringify_actual_token {
+	my ( $tok ) = @_;
+	return '__NULL__' unless defined $tok;
+
+	if ( not ref $tok and looks_like_number( $tok ) ) {
+		return 0 + $tok;
+	}
+
+	return "$tok";
+}
