@@ -55,7 +55,50 @@ sub _tokenize {
 
         if ($ch =~ /\s/) { $i++; next; }
 
-        # path slash token (always a token, but distinct from division op)
+        my $prev = $i > 0 ? $c[$i-1] : undef;
+        my $next = $i + 1 < $n ? $c[$i+1] : undef;
+
+        # binary operators: + - * / % && || ^ & | == != >= <= > <
+        # require whitespace on both sides (per zpath.me)
+        {
+            my %two_char = (
+                '&&' => 'ANDAND',
+                '||' => 'OROR',
+                '==' => 'EQEQ',
+                '!=' => 'NEQ',
+                '>=' => 'GE',
+                '<=' => 'LE',
+            );
+            my %one_char = (
+                '+' => 'PLUS',
+                '-' => 'MINUS',
+                '*' => 'STAR',
+                '/' => 'SLASH',
+                '%' => 'PCT',
+                '^' => 'BXOR',
+                '&' => 'BAND',
+                '|' => 'BOR',
+                '>' => 'GT',
+                '<' => 'LT',
+            );
+
+            if ( _is_ws($prev) ) {
+                my $pair = ($i + 1 < $n) ? ($ch . $c[$i+1]) : '';
+                if ( exists $two_char{$pair} && _is_ws($i + 2 < $n ? $c[$i+2] : undef) ) {
+                    $push->({ k => $two_char{$pair}, v => $pair });
+                    $i += 2;
+                    next;
+                }
+
+                if ( exists $one_char{$ch} && _is_ws($next) ) {
+                    $push->({ k => $one_char{$ch}, v => $ch });
+                    $i++;
+                    next;
+                }
+            }
+        }
+
+        # path slash token (distinct from division op)
         if ($ch eq '/') {
             $push->({ k => 'SLASH_PATH', v => '/' });
             $i++;
@@ -163,41 +206,6 @@ sub _tokenize {
             $push->({ k => 'NUMBER', v => 0 + $num });
             $i = $j;
             next;
-        }
-
-        # binary operators: + - * / % && || ^ & | == != >= <= > <
-        # require whitespace on both sides (per zpath.me)
-        {
-            my $prev = $i > 0 ? $c[$i-1] : undef;
-            my $next = $i + 1 < $n ? $c[$i+1] : undef;
-
-            my $ws_ok_1 = _is_ws($prev);
-            # for 2-char ops, check next-next for ws too
-            my $next2 = $i + 2 < $n ? $c[$i+2] : undef;
-
-            if ($ws_ok_1) {
-                # 2-char ops
-                if ($ch eq '&' && defined $next && $next eq '&' && _is_ws($next2)) { $push->({ k => 'ANDAND', v => '&&' }); $i += 2; next; }
-                if ($ch eq '|' && defined $next && $next eq '|' && _is_ws($next2)) { $push->({ k => 'OROR',  v => '||' }); $i += 2; next; }
-                if ($ch eq '=' && defined $next && $next eq '=' && _is_ws($next2)) { $push->({ k => 'EQEQ',  v => '==' }); $i += 2; next; }
-                if ($ch eq '!' && defined $next && $next eq '=' && _is_ws($next2)) { $push->({ k => 'NEQ',   v => '!=' }); $i += 2; next; }
-                if ($ch eq '>' && defined $next && $next eq '=' && _is_ws($next2)) { $push->({ k => 'GE',    v => '>=' }); $i += 2; next; }
-                if ($ch eq '<' && defined $next && $next eq '=' && _is_ws($next2)) { $push->({ k => 'LE',    v => '<=' }); $i += 2; next; }
-
-                # 1-char ops
-                if (_is_ws($next)) {
-                    if ($ch eq '+') { $push->({ k => 'PLUS',  v => '+' }); $i++; next; }
-                    if ($ch eq '-') { $push->({ k => 'MINUS', v => '-' }); $i++; next; }
-                    if ($ch eq '*') { $push->({ k => 'STAR',  v => '*' }); $i++; next; }
-                    if ($ch eq '%') { $push->({ k => 'PCT',   v => '%' }); $i++; next; }
-                    if ($ch eq '^') { $push->({ k => 'BXOR',  v => '^' }); $i++; next; }
-                    if ($ch eq '&') { $push->({ k => 'BAND',  v => '&' }); $i++; next; }
-                    if ($ch eq '|') { $push->({ k => 'BOR',   v => '|' }); $i++; next; }
-                    if ($ch eq '>') { $push->({ k => 'GT',    v => '>' }); $i++; next; }
-                    if ($ch eq '<') { $push->({ k => 'LT',    v => '<' }); $i++; next; }
-                    if ($ch eq '/') { $push->({ k => 'SLASH', v => '/' }); $i++; next; }
-                }
-            }
         }
 
         # NAME (path segment or function name), supports backslash-escaped chars in name
