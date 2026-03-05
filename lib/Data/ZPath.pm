@@ -130,13 +130,9 @@ sub _eval_expr {
     if ($t eq 'fn') {
         return _eval_fn($ast, $ctx);
     }
-    if ($t eq 'un') {
-        my @v = _eval_expr($ast->{e}, $ctx);
-        my $x = _truthy($v[0]);
-
-        if ( $ast->{op} eq '!' and $ast->{e} and $ast->{e}->{t} and $ast->{e}->{t} eq 'path' ) {
-            $x = @v ? !!$v[0] : !!0;
-        }
+	if ($t eq 'un') {
+		my @v = _eval_expr($ast->{e}, $ctx);
+		my $x = _truthy($v[0]);
 
         if ($ast->{op} eq '!') {
             return (Data::ZPath::_Node->_wrap($x ? !!0 : !!1, undef, undef));
@@ -317,8 +313,8 @@ sub _eval_path {
         }
         elsif ($seg->{k} eq 'fnseg') {
             my @out;
-            for my $n (@current) {
-                my $seg_ctx = $ctx->with_nodeset([$n], \\@current);
+			for my $n (@current) {
+				my $seg_ctx = $ctx->with_nodeset( [$n], \@current );
                 my @res = _eval_fn({ t => 'fn', n => $seg->{n}, a => $seg->{a} }, $seg_ctx);
                 push @out, @res;
             }
@@ -535,21 +531,33 @@ sub _eval_fn {
         return (Data::ZPath::_Node->_wrap($i[0]->primitive_value == ($c[0]->primitive_value - 1) ? !!1 : !!0, undef, undef));
     }
 
-    if ($name eq 'next' || $name eq 'prev') {
-        my $cur = $ns->[0];
-        return unless $cur && $cur->parent;
-        my $praw = $cur->parent->raw;
-        my $k = $cur->key;
+	if ($name eq 'next' || $name eq 'prev') {
+		my $cur = $ns->[0];
+		return unless $cur && $cur->parent;
+		my @siblings = grep { $_->type ne 'attr' } $cur->parent->children;
+		my $i;
+		for my $ix ( 0 .. $#siblings ) {
+			my $sraw = $siblings[$ix]->raw;
+			my $craw = $cur->raw;
+			if ( blessed($sraw) and blessed($craw)
+				and $sraw->isa('XML::LibXML::Node')
+				and $craw->isa('XML::LibXML::Node') ) {
+				next unless eval { $sraw->isSameNode($craw) };
+				$i = $ix;
+				last;
+			}
+			next unless defined $siblings[$ix]->id and defined $cur->id;
+			if ( $siblings[$ix]->id eq $cur->id ) {
+				$i = $ix;
+				last;
+			}
+		}
 
-        if (ref($praw) eq 'ARRAY' && defined $k && $k =~ /^\d+$/) {
-            my $ni = $name eq 'next' ? $k + 1 : $k - 1;
-            return if $ni < 0 || $ni >= @$praw;
-            my $child = Data::ZPath::_Node->_wrap($praw->[$ni], $cur->parent, $ni);
-            $child->with_slot(sub { if (@_) { $praw->[$ni] = $_[0] } return $praw->[$ni] }) unless ref($praw->[$ni]);
-            return $child;
-        }
-        return;
-    }
+		return unless defined $i;
+		my $ni = $name eq 'next' ? $i + 1 : $i - 1;
+		return if $ni < 0 || $ni > $#siblings;
+		return $siblings[$ni];
+	}
 
     if ($name eq 'string') {
         if (@args) {
@@ -849,19 +857,24 @@ sub _string_replace {
 }
 
 sub _dedup_nodes {
-    my %seen;
-    return grep { not $seen{$_->id}++ } @_;
+	my %seen;
+	return grep {
+		my $raw = $_->raw;
+		my $key = $_->id;
+
+		if ( blessed($raw) and $raw->isa('XML::LibXML::Node') ) {
+			$key = join ':', 'xmlpath', $raw->nodeType, ($raw->nodePath // q{});
+		}
+
+		not $seen{$key}++;
+	} @_;
 }
 
 sub _truthy {
-    my ($n) = @_;
-    return !!0 unless $n;
-
-    # Path-selected nodes are truthy by existence.
-    my $id = $n->id;
-    return !!1 if defined $id;
-
-    return !!$n->primitive_value;
+	my ($n) = @_;
+	return !!0 unless $n;
+	my $pv = $n->primitive_value;
+	return !!$pv;
 }
 
 sub _to_number {
