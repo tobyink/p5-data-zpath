@@ -1,4 +1,5 @@
 use Test2::V0;
+use Test2::Require::Module 'XML::LibXML';
 
 use Data::ZPath;
 use XML::LibXML;

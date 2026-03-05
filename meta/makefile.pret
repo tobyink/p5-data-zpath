@@ -2,8 +2,13 @@
 
 @prefix : <http://ontologi.es/doap-deps#>.
 
-`Data-ZPath`
+`Data-ZPath`0
 	:runtime-requirement    [ :on "perl 5.010001"^^:CpanId ];
+	:runtime-requirement    [ :on "Regexp::Util"^^:CpanId ];
+	:runtime-requirement    [ :on "Scalar::Util 1.26"^^:CpanId ];
+	:test-recommendation    [ :on "CBOR::Free"^^:CpanId ];
+	:test-recommendation    [ :on "JSON::PP"^^:CpanId ];
+	:test-recommendation    [ :on "XML::LibXML"^^:CpanId ];
 	:test-requirement       [ :on "Test2::V0"^^:CpanId ];
 	:test-requirement       [ :on "Test2::Tools::Spec"^^:CpanId ];
 	:test-requirement       [ :on "Test2::Require::AuthorTesting"^^:CpanId ];

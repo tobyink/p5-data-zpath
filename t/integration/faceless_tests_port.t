@@ -1,4 +1,7 @@
 use Test2::V0;
+use Test2::Require::Module 'CBOR::Free';
+use Test2::Require::Module 'JSON::PP';
+use Test2::Require::Module 'XML::LibXML';
 
 use CBOR::Free;
 use Data::Dumper;
