@@ -49,6 +49,22 @@ sub _tokenize {
 	my $i = 0;
 
 	my $push = sub { push @t, @_ };
+	my $prev_sig = sub {
+		my ( $idx ) = @_;
+		for ( my $j = $idx - 1; $j >= 0; $j-- ) {
+			next if $c[$j] =~ /\s/;
+			return $c[$j];
+		}
+		return undef;
+	};
+	my $next_sig = sub {
+		my ( $idx ) = @_;
+		for ( my $j = $idx + 1; $j < $n; $j++ ) {
+			next if $c[$j] =~ /\s/;
+			return $c[$j];
+		}
+		return undef;
+	};
 	my $ws_on_both = sub {
 		my ( $left, $right ) = @_;
 		return ( _is_ws($left) and _is_ws($right) );
@@ -106,13 +122,22 @@ sub _tokenize {
 			next;
 		}
 
-		if ( $ch eq '/' and $ws_on_both->( $prev, $next ) ) {
+		my $prev_nonws = $prev_sig->($i);
+		my $next_nonws = $next_sig->($i);
+
+		if ( $ch eq '/' and $ws_on_both->( $prev, $next )
+			and defined $prev_nonws and defined $next_nonws
+			and $prev_nonws !~ m{[\[\(,:?/]}
+			and $next_nonws !~ m{[\]\),:?/]} ) {
 			$push->({ k => 'SLASH', v => '/' });
 			$i++;
 			next;
 		}
 
-		if ( $ch eq '/' and ( _is_ws($prev) xor _is_ws($next) ) ) {
+		if ( $ch eq '/' and ( _is_ws($prev) xor _is_ws($next) )
+			and defined $prev_nonws and defined $next_nonws
+			and $prev_nonws !~ m{[\[\(,:?/]}
+			and $next_nonws !~ m{[\]\),:?/]} ) {
 			croak "Binary operator '/' requires whitespace around it";
 		}
 
