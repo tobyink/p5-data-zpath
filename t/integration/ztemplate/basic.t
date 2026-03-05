@@ -76,4 +76,44 @@ subtest 'template can be loaded from file' => sub {
 	is( $tmpl->process({ product => { price => '9.99' } }), "Price: 9.99\n", 'reads template from file' );
 };
 
+
+subtest 'template include paths are relative to including file' => sub {
+	my $tmpl = Text::ZTemplate->new(
+		file => 't/integration/ztemplate/include-main.tmpl',
+		escape => 'raw',
+	);
+
+	my $out = $tmpl->process({
+		product => {
+			name => 'Widget',
+			price => '9.99',
+		},
+	});
+
+	is(
+		$out,
+		"Header
+Child: Widget
+Grandchild: 9.99
+
+
+Footer
+",
+		'include and nested include render from local directories',
+	);
+};
+
+subtest 'circular includes are rejected' => sub {
+	like(
+		dies {
+			Text::ZTemplate->new(
+				file => 't/integration/ztemplate/cycle-a.tmpl',
+				escape => 'raw',
+			);
+		},
+		qr/Circular include detected/,
+		'circular include reports a clear error',
+	);
+};
+
 done_testing;

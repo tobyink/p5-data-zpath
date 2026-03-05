@@ -4,7 +4,10 @@ use warnings;
 package Text::ZTemplate;
 
 use Carp qw(croak);
+use Cwd qw(abs_path);
 use Data::ZPath;
+use File::Basename qw(dirname);
+use File::Spec;
 
 our $VERSION = '0.001';
 
@@ -27,14 +30,14 @@ sub new {
 	}
 
 	if ( defined $file ) {
-		open my $fh, '<:encoding(UTF-8)', $file
-			or croak qq{Unable to read template file "$file": $!};
-		local $/;
-		$string = <$fh>;
-		close $fh;
+		( $string, $file ) = _read_template_file($file);
 	}
 
-	my $tokens = _parse_template( $string // q{} );
+	my $tokens = _parse_template(
+		template => $string // q{},
+		current_file => $file,
+		seen_files => {},
+	);
 
 	my $self = bless {
 		escape => $escape,
@@ -56,7 +59,10 @@ sub process {
 }
 
 sub _parse_template {
-	my ( $template ) = @_;
+	my ( %args ) = @_;
+	my $template = $args{template};
+	my $current_file = $args{current_file};
+	my $seen_files = $args{seen_files} || {};
 
 	my $root = [];
 	my @stack = ({
@@ -115,13 +121,44 @@ sub _parse_template {
 			}
 		}
 		elsif ( length $trimmed ) {
-			my $parsed = _parse_expression_spec($trimmed);
-			push @{$stack[-1]{nodes}}, {
-				type => 'expr',
-				expr_src => $parsed->{expr},
-				escape => $parsed->{escape},
-				expr => Data::ZPath->new( $parsed->{expr} ),
-			};
+			if ( $trimmed =~ /^>(.*)\z/s ) {
+				my $include_path = $1;
+				$include_path =~ s/^\s+//;
+				$include_path =~ s/\s+\z//;
+				croak 'Empty include path in template tag'
+					unless length $include_path;
+
+				my $resolved_file = _resolve_include_path(
+					include_path => $include_path,
+					current_file => $current_file,
+				);
+
+				my $key = _canonical_path($resolved_file);
+				if ( $seen_files->{$key} ) {
+					croak qq{Circular include detected for "$resolved_file"};
+				}
+
+				$seen_files->{$key} = 1;
+				my ( $include_text, $include_file ) =
+					_read_template_file($resolved_file);
+				my $include_nodes = _parse_template(
+					template => $include_text,
+					current_file => $include_file,
+					seen_files => $seen_files,
+				);
+				delete $seen_files->{$key};
+
+				push @{$stack[-1]{nodes}}, @$include_nodes;
+			}
+			else {
+				my $parsed = _parse_expression_spec($trimmed);
+				push @{$stack[-1]{nodes}}, {
+					type => 'expr',
+					expr_src => $parsed->{expr},
+					escape => $parsed->{escape},
+					expr => Data::ZPath->new( $parsed->{expr} ),
+				};
+			}
 		}
 
 		$pos = pos($template);
@@ -141,6 +178,45 @@ sub _parse_template {
 	}
 
 	return $root;
+}
+
+
+sub _read_template_file {
+	my ( $file ) = @_;
+
+	open my $fh, '<:encoding(UTF-8)', $file
+		or croak qq{Unable to read template file "$file": $!};
+	local $/;
+	my $text = <$fh>;
+	close $fh;
+
+	my $canonical = _canonical_path($file);
+
+	return ( $text, $canonical );
+}
+
+sub _resolve_include_path {
+	my ( %args ) = @_;
+	my $include_path = $args{include_path};
+	my $current_file = $args{current_file};
+
+	if ( File::Spec->file_name_is_absolute($include_path) ) {
+		return $include_path;
+	}
+
+	croak qq{Relative include path "$include_path" requires file-based template source}
+		unless defined $current_file;
+
+	my $base_dir = dirname($current_file);
+	my $resolved = File::Spec->catfile( $base_dir, $include_path );
+
+	return $resolved;
+}
+
+sub _canonical_path {
+	my ( $path ) = @_;
+	my $abs = abs_path($path);
+	return defined $abs ? $abs : File::Spec->rel2abs($path);
 }
 
 sub _parse_expression_spec {
@@ -327,6 +403,11 @@ Per-expression escaping override:
 C<{{ expression :: html }}> or
 C<{{ expression :: raw }}>
 
+=item *
+
+Includes:
+C<{{> path/to/include.tmpl }}>
+
 =back
 
 ZPath expressions are compiled once at template construction
@@ -347,6 +428,9 @@ C<raw>.
 =head2 C<< process( $data ) >>
 
 Apply the template to C<$data> and return the rendered string.
+
+Include paths are resolved relative to the file that contains
+that include tag.
 
 =head1 ESCAPING
 
