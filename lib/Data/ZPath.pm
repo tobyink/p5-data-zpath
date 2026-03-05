@@ -68,16 +68,17 @@ sub each {
     for my $term (@{$self->{terms}}) {
         my @res = _eval_expr($term, $ctx);
 
-        for my $node (@res) {
-            my $slot = $node->slot;
-            croak "each() can only mutate Perl map/list scalars (not XML)" unless $slot && ref($slot) eq 'CODE';
+		for my $node (@res) {
+			my $slot = $node->slot;
+			croak "each() can only mutate Perl map/list scalars (not XML)" unless $slot && ref($slot) eq 'CODE';
 
-            tie my $proxy, 'Data::ZPath::_ScalarProxy', $slot;
-            local $_ = $proxy;
-            $cb->();
-            untie $proxy;
-        }
-    }
+			tie my $proxy, 'Data::ZPath::_ScalarProxy', $slot;
+			for ($proxy) {
+				$cb->();
+			}
+			untie $proxy;
+		}
+	}
 
     return;
 }
@@ -733,9 +734,14 @@ sub _node_to_primitive {
 }
 
 sub _truthy {
-    my ($n) = @_;
-    return 0 unless $n;
-    my $v = $n->primitive_value;
+	my ($n) = @_;
+	return 0 unless $n;
+
+	# Path-selected nodes are truthy by existence.
+	my $id = $n->id;
+	return 1 if defined $id;
+
+	my $v = $n->primitive_value;
 
     return 0 if !defined $v;
     return 0 if $v eq '' && !ref($v);
@@ -880,4 +886,3 @@ the same terms as the Perl 5 programming language system itself.
 THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED
 WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
 MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-

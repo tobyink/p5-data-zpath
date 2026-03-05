@@ -225,16 +225,33 @@ sub _parse_path_expr {
 
     my @segs;
 
-    # path can start with "/" or with a segment.
-    if ($lx->peek_kind eq 'SLASH_PATH') {
-        $lx->next_tok; # consume '/'
-        push @segs, { k => 'root' };
-        if ($lx->peek_kind eq 'EOF' || $lx->peek_kind eq 'COMMA' || $lx->peek_kind eq 'RPAREN' || $lx->peek_kind eq 'RBRACK') {
-            return { t => 'path', s => \@segs };
-        }
-    }
+	# path can start with "/" or with a segment.
+	if ($lx->peek_kind eq 'SLASH_PATH') {
+		$lx->next_tok; # consume '/'
+		push @segs, { k => 'root', q => [] };
 
-    push @segs, _parse_path_segment($lx);
+		if ($lx->peek_kind eq 'LBRACK') {
+			$segs[-1]->{q} = _parse_qualifiers($lx);
+		}
+
+		if ($lx->peek_kind eq 'EOF' || $lx->peek_kind eq 'COMMA' || $lx->peek_kind eq 'RPAREN' || $lx->peek_kind eq 'RBRACK') {
+			return { t => 'path', s => \@segs };
+		}
+	}
+	elsif ($lx->peek_kind eq 'LBRACK') {
+		my $seg = { k => 'dot', q => _parse_qualifiers($lx) };
+		push @segs, $seg;
+		return { t => 'path', s => \@segs }
+			if $lx->peek_kind eq 'EOF' || $lx->peek_kind eq 'COMMA' || $lx->peek_kind eq 'RPAREN' || $lx->peek_kind eq 'RBRACK';
+	}
+
+	if ( $lx->peek_kind ne 'SLASH_PATH'
+		&& $lx->peek_kind ne 'EOF'
+		&& $lx->peek_kind ne 'COMMA'
+		&& $lx->peek_kind ne 'RPAREN'
+		&& $lx->peek_kind ne 'RBRACK' ) {
+		push @segs, _parse_path_segment($lx);
+	}
 
     while ($lx->peek_kind eq 'SLASH_PATH') {
         $lx->next_tok;

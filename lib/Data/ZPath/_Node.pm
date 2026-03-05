@@ -18,14 +18,19 @@ sub _wrap {
     my $is_xml = blessed($obj) && $obj->isa('XML::LibXML::Node');
     my $id;
 
-    if ($is_xml) {
-        $id = 'xml:' . refaddr($obj);
-    } elsif (ref($obj)) {
-        $id = 'ref:' . refaddr($obj);
-    } else {
-        # primitive: no stable identity, but used as a value node (not deduped as a tree node)
-        $id = undef;
-    }
+	if ($is_xml) {
+		$id = 'xml:' . refaddr($obj);
+	} elsif (ref($obj)) {
+		$id = 'ref:' . refaddr($obj);
+	} elsif ($parent) {
+		my $pid = $parent->id;
+		$pid = 'root' unless defined $pid;
+		my $k = defined $key ? $key : '';
+		$id = 'slot:' . $pid . ':' . $k;
+	} else {
+		# primitive: no stable identity, but used as a value node (not deduped as a tree node)
+		$id = undef;
+	}
 
     return bless {
         raw    => $obj,
@@ -69,9 +74,7 @@ sub type {
         return 'document';
     }
 
-    return 'undefined' unless defined $x;
-
-    return 'null'    if !defined $x;
+	return 'null'    unless defined $x;
     return 'map'     if ref($x) eq 'HASH';
     return 'list'    if ref($x) eq 'ARRAY';
     return 'boolean' if !ref($x) && ($x eq '0' || $x eq '1');
