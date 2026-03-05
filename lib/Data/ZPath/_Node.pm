@@ -36,6 +36,14 @@ sub _is_bool {
         return !!1 if $$value eq 1;
     }
 
+    if (blessed($value) and $value->isa('Types::Serialiser::Boolean')) {
+        return !!1;
+    }
+
+    if (blessed($value) and $value->isa('JSON::PP::Boolean')) {
+        return !!1;
+    }
+
     return !!0 unless defined $value;
     return !!0 if $ref;
     return !!0 unless isdual( $value );
@@ -50,10 +58,16 @@ sub from_root {
 }
 
 sub _wrap {
-    my ($class, $obj, $parent, $key) = @_;
+    my ($class, $obj, $parent, $key, $ix) = @_;
 
     my $is_xml = blessed($obj) && $obj->isa('XML::LibXML::Node');
     my $id;
+
+    if (blessed($obj) && $obj->isa('XML::LibXML::Document')) {
+        $obj    = $obj->documentElement;
+        $key    = $obj->nodeName;
+        $is_xml = 1;
+    }
 
     if ($is_xml) {
         $id = 'xml:' . refaddr($obj);
@@ -74,14 +88,17 @@ sub _wrap {
         parent => $parent,
         key    => $key,
         id     => $id,
+        ix     => $ix,
         slot   => undef, # coderef getter/setter for Perl scalar lvalue
     }, $class;
 }
 
-sub raw    { $_[0]->{raw} }
-sub parent { $_[0]->{parent} }
-sub key    { $_[0]->{key} }
-sub id     { $_[0]->{id} }
+sub raw    { $_[0]{raw} }
+sub parent { $_[0]{parent} }
+sub key    { $_[0]{key} }
+sub id     { $_[0]{id} }
+sub ix     { $_[0]{ix} }
+sub index  { $_[0]{ix} }
 
 sub slot {
     my ($self) = @_;
@@ -95,8 +112,12 @@ sub with_slot {
 }
 
 sub type {
-    my ($self) = @_;
-    my $x = $self->{raw};
+    my ($self, $x) = @_;
+    $x = $self->{raw} if @_ == 1;
+
+    if (blessed($x) && $x->isa('CBOR::Free::Tagged')) {
+        return $self->type($x->[1]);
+    }
 
     if (blessed($x) && $x->isa('XML::LibXML::Namespace')) {
         return 'attr';
@@ -113,6 +134,13 @@ sub type {
     if (blessed($x) && $x->isa('XML::LibXML::Document')) {
         return 'document';
     }
+    if (blessed($x) && $x->isa('XML::LibXML::Comment')) {
+        return 'comment';
+    }
+
+    if (blessed($x) && $x->isa('Math::BigInt')) {
+        return 'number';
+    }
 
     return 'null'    unless defined $x;
     return 'map'     if ref($x) eq 'HASH';
@@ -120,12 +148,34 @@ sub type {
     return 'boolean' if _is_bool($x);
     return 'number'  if _created_as_number($x);
     return 'string'  if _created_as_string($x);
-    return 'object';
+    return ref($x);
+}
+
+# Essentially returns raw, but normalizes booleans
+sub value {
+    my ($self, $x) = @_;
+    $x = $self->{raw} if @_ == 1;
+
+    if ( ref $x and reftype($x) and reftype($x) eq 'SCALAR' ) {
+        return !!$$x if $x eq 0 || $x eq 1;
+    }
+    if (blessed($x) and $x->isa('Types::Serialiser::Boolean')) {
+        return !!( $x ? 1 : 0 );
+    }
+    if (blessed($x) and $x->isa('JSON::PP::Boolean')) {
+        return !!( $x ? 1 : 0 );
+    }
+
+    return $x;
 }
 
 sub primitive_value {
-    my ($self) = @_;
-    my $x = $self->{raw};
+    my ($self, $x) = @_;
+    $x = $self->{raw} if @_ == 1;
+
+    if (blessed($x) && $x->isa('CBOR::Free::Tagged')) {
+        return $self->type($x->[1]);
+    }
 
     if (blessed($x) && $x->isa('XML::LibXML::Document')) {
         my $de = $x->documentElement;
@@ -143,16 +193,53 @@ sub primitive_value {
     if (blessed($x) && $x->isa('XML::LibXML::Text')) {
         return $x->data;
     }
+    if (blessed($x) && $x->isa('XML::LibXML::Comment')) {
+        return $x->data;
+    }
 
     if ( ref $x and reftype($x) and reftype($x) eq 'SCALAR' ) {
         return !!$$x if $x eq 0 || $x eq 1;
+    }
+
+    if (blessed($x) and $x->isa('Types::Serialiser::Boolean')) {
+        return !!( $x ? 1 : 0 );
+    }
+
+    if (blessed($x) and $x->isa('JSON::PP::Boolean')) {
+        return !!( $x ? 1 : 0 );
     }
 
     return $x;
 }
 
 sub string_value {
-    my ($self) = @_;
+    my ($self, $x) = @_;
+    $x = $self->{raw} if @_ == 1;
+
+    if (blessed($x) && $x->isa('CBOR::Free::Tagged')) {
+        return $self->type($x->[1]);
+    }
+
+    if (blessed($x) && $x->isa('XML::LibXML::Document')) {
+        my $de = $x->documentElement;
+        return defined($de) ? $de->textContent : undef;
+    }
+    if (blessed($x) && $x->isa('XML::LibXML::Namespace')) {
+        return $x->declaredURI // $x->nodeValue // '';
+    }
+    if (blessed($x) && $x->isa('XML::LibXML::Attr')) {
+        return $x->getValue;
+    }
+    if (blessed($x) && $x->isa('XML::LibXML::Element')) {
+        return $x->textContent;
+    }
+    if (blessed($x) && $x->isa('XML::LibXML::Text')) {
+        return $x->data;
+    }
+    if (blessed($x) && $x->isa('XML::LibXML::Comment')) {
+        return $x->data;
+    }
+
     my $v = $self->primitive_value;
     return undef unless defined $v;
     return "$v";
@@ -162,6 +249,12 @@ sub number_value {
     my ($self) = @_;
     my $v = $self->primitive_value;
     return undef unless defined $v && Scalar::Util::looks_like_number($v);
+
+    if ($Data::ZPath::UseBigInt and $v =~ /\A-?[0-9]{19,}\z/) {
+        require Math::BigInt;
+        return Math::BigInt->from_dec($v);
+    }
+
     return 0 + $v;
 }
 
@@ -172,13 +265,14 @@ sub children {
     # XML document: treat documentElement as child
     if (blessed($x) && $x->isa('XML::LibXML::Document')) {
         my $de = $x->documentElement;
-        return () unless $de;
-        return (Data::ZPath::_Node->_wrap($de, $self, 0));
+        return unless $de;
+        return Data::ZPath::_Node->_wrap($de, $self, 0);
     }
 
     if (blessed($x) && $x->isa('XML::LibXML::Element')) {
         my @kids = $x->childNodes;
-        return map { Data::ZPath::_Node->_wrap($_, $self, $_->nodeName) } @kids;
+        my %count;
+        return map { Data::ZPath::_Node->_wrap($_, $self, $_->nodeName, $count{$_->nodeName}++ || 0) } @kids;
     }
 
     if (ref($x) eq 'HASH') {
@@ -197,7 +291,7 @@ sub children {
     if (ref($x) eq 'ARRAY') {
         my @out;
         for (my $i = 0; $i < @$x; $i++) {
-            my $child = Data::ZPath::_Node->_wrap($x->[$i], $self, $i);
+            my $child = Data::ZPath::_Node->_wrap($x->[$i], $self, $i, $i);
             $child->with_slot(sub {
                 if (@_) { $x->[$i] = $_[0]; }
                 return $x->[$i];
@@ -213,7 +307,7 @@ sub children {
 sub attributes {
     my ($self) = @_;
     my $x = $self->{raw};
-    return () unless blessed($x) && $x->isa('XML::LibXML::Element');
+    return unless blessed($x) && $x->isa('XML::LibXML::Element');
     my @attrs = $x->attributes;
     return map { Data::ZPath::_Node->_wrap($_, $self, '@' . $_->nodeName) } @attrs;
 }
@@ -227,6 +321,18 @@ sub name {
     if (blessed($x) && $x->isa('XML::LibXML::Text'))    { return '#text'; }
 
     return $self->{key};
+}
+
+sub dump {
+    my ($self) = @_;
+    return {
+        '@type'      => $self->type,
+        '@id'        => $self->id,
+        '@key'       => $self->key,
+        '@value'     => $self->primitive_value,
+        children     => [ map $_->dump, $self->children ],
+        attributes   => [ map $_->dump, $self->attributes ],
+    };
 }
 
 1;

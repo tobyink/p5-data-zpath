@@ -3,9 +3,10 @@ use warnings;
 
 package Data::ZPath;
 
-use Scalar::Util qw(blessed refaddr looks_like_number);
-use POSIX qw(ceil floor);
-use Carp qw(croak);
+use Carp          qw(croak);
+use POSIX         qw(ceil floor);
+use Regexp::Util  qw(deserialize_regexp);
+use Scalar::Util  qw(blessed refaddr looks_like_number);
 
 use Data::ZPath::_Ctx;
 use Data::ZPath::_Lexer;
@@ -28,6 +29,9 @@ for my $pkg ( @CARP_NOT ) {
     *{"${pkg}::CARP_NOT"} = \@CARP_NOT;
 }
 
+our $Epsilon   = 1e-08;
+our $UseBigInt = !!1;
+
 sub new {
     my ($class, $expr) = @_;
     croak "Missing expression" unless defined $expr;
@@ -40,24 +44,37 @@ sub new {
     return $self;
 }
 
-sub first {
-    my ($self, $root) = @_;
-    my @vals = $self->all($root);
-    return $vals[0];
-}
-
-sub all {
-    my ($self, $root) = @_;
+sub evaluate {
+    my ($self, $root, %opts) = @_;
 
     my $ctx = Data::ZPath::_Ctx->new($root);
     my @out;
 
     for my $term (@{$self->{terms}}) {
-        my @res = _eval_expr($term, $ctx);
-        push @out, map { _node_to_primitive($_) } @res;
+        push @out, _eval_expr($term, $ctx);
+        return @out if $opts{first} && @out;
     }
 
     return @out;
+}
+
+sub all {
+    my ($self, $root) = @_;
+    map defined ? $_->value : $_, $self->evaluate( $root );
+}
+
+sub first {
+    my ($self, $root) = @_;
+    my @vals = $self->evaluate($root, first => 1);
+    return $vals[0]->value if defined $vals[0];
+    return undef;
+}
+
+sub last {
+    my ($self, $root) = @_;
+    my @vals = $self->evaluate($root);
+    return $vals[-1]->value if defined $vals[-1];
+    return undef;
 }
 
 sub each {
@@ -73,14 +90,24 @@ sub each {
             croak "each() can only mutate Perl map/list scalars (not XML)" unless $slot && ref($slot) eq 'CODE';
 
             tie my $proxy, 'Data::ZPath::_ScalarProxy', $slot;
-            for ($proxy) {
-                $cb->();
-            }
-            untie $proxy;
+            $cb->() for $proxy;
         }
     }
 
     return;
+}
+
+sub _pattern_to_regexp {
+    my ($pat) = @_;
+
+    for my $candidate ( qw{ / | : " ' }, '#' ) {
+        if ( index($pat, $candidate) < 0 ) {
+            return deserialize_regexp sprintf( 'qr%s%s%s', $candidate, $pat, $candidate );
+        }
+    }
+
+    $pat =~ s{\/}{\\\/}g;
+    return deserialize_regexp sprintf( 'qr/%s/', $pat );
 }
 
 sub _eval_expr {
@@ -89,10 +116,10 @@ sub _eval_expr {
     my $t = $ast->{t};
 
     if ($t eq 'num') {
-        return (Data::ZPath::_Node->_wrap($ast->{v}, undef, undef));
+        return Data::ZPath::_Node->_wrap($ast->{v}, undef, undef);
     }
     if ($t eq 'str') {
-        return (Data::ZPath::_Node->_wrap($ast->{v}, undef, undef));
+        return Data::ZPath::_Node->_wrap($ast->{v}, undef, undef);
     }
     if ($t eq 'path') {
         return _eval_path($ast, $ctx);
@@ -105,16 +132,16 @@ sub _eval_expr {
         my $x = _truthy($v[0]);
 
         if ( $ast->{op} eq '!' and $ast->{e} and $ast->{e}->{t} and $ast->{e}->{t} eq 'path' ) {
-            $x = @v ? _truthy_value($v[0]) : 0;
+            $x = @v ? !!$v[0] : !!0;
         }
 
         if ($ast->{op} eq '!') {
-            return (Data::ZPath::_Node->_wrap($x ? 0 : 1, undef, undef));
+            return (Data::ZPath::_Node->_wrap($x ? !!0 : !!1, undef, undef));
         }
         if ($ast->{op} eq '~') {
             my $n = _to_number($v[0]);
-            return () unless defined $n;
-            return (Data::ZPath::_Node->_wrap((~(int($n))), undef, undef));
+            return unless defined $n;
+            return Data::ZPath::_Node->_wrap((~(int($n))), undef, undef);
         }
         croak "Unknown unary op $ast->{op}";
     }
@@ -129,8 +156,9 @@ sub _eval_expr {
         # Logical ops treat as booleans
         if ($op eq '&&' || $op eq '||') {
             my $lb = _truthy($lv);
+            my $rb = _truthy($rv);
             return (Data::ZPath::_Node->_wrap(
-                ($op eq '&&') ? ($lb && _truthy($rv) ? 1 : 0) : ($lb || _truthy($rv) ? 1 : 0),
+                ($op eq '&&') ? ($lb && $rb ? !!1 : !!0) : ($lb || $rb ? !!1 : !!0),
                 undef, undef
             ));
         }
@@ -152,11 +180,11 @@ sub _eval_expr {
             }
 
             $eq = !$eq if $op eq '!=';
-            return (Data::ZPath::_Node->_wrap($eq ? 1 : 0, undef, undef));
+            return (Data::ZPath::_Node->_wrap($eq ? !!1 : !!0, undef, undef));
         }
 
         # Relations (numeric if both numeric, else string)
-        if ($op =~ /^(>=|<=|>|<)$/) {
+        if ($op =~ /^( >= | <= | > | < )$/x) {
             my $ln = _to_number($lv);
             my $rn = _to_number($rv);
             my $ok;
@@ -173,7 +201,7 @@ sub _eval_expr {
                     :  $op eq '>'  ? $ls gt $rs
                     :               $ls lt $rs);
             }
-            return (Data::ZPath::_Node->_wrap($ok ? 1 : 0, undef, undef));
+            return (Data::ZPath::_Node->_wrap($ok ? !!1 : !!0, undef, undef));
         }
 
         # Bitwise ops (ints)
@@ -191,6 +219,11 @@ sub _eval_expr {
         if ($op eq '+' || $op eq '-' || $op eq '*' || $op eq '/' || $op eq '%') {
             my $ln = _to_number($lv);
             my $rn = _to_number($rv);
+
+            if ($op eq '%' and $ln=~/\./ || $rn=~/\./) {
+                return Data::ZPath::_Node->_wrap(_floaty_modulus($ln, $rn), undef, undef);
+            }
+
             return () unless defined $ln && defined $rn;
             my $res =
                 $op eq '+' ? ($ln + $rn) :
@@ -198,12 +231,13 @@ sub _eval_expr {
                 $op eq '*' ? ($ln * $rn) :
                 $op eq '/' ? ($rn == 0 ? undef : ($ln / $rn)) :
                 ($rn == 0 ? undef : ($ln % $rn));
-            return () unless defined $res;
-            return (Data::ZPath::_Node->_wrap($res, undef, undef));
+            return unless defined $res;
+            return Data::ZPath::_Node->_wrap($res, undef, undef);
         }
 
         croak "Unknown binary op $op";
     }
+
     if ($t eq 'ternary') {
         my @c = _eval_expr($ast->{c}, $ctx);
         my $cond = _truthy($c[0]);
@@ -211,6 +245,14 @@ sub _eval_expr {
     }
 
     croak "Unknown AST node type: $t";
+}
+
+# Reference implementation of ZPath is in Java, which has a sane
+# floating point modulus opertator. Try to implement equivalent in Perl.
+sub _floaty_modulus {
+    my ($ln, $rn) = @_;
+    my $count = POSIX::floor($ln / $rn);
+    $ln - ( $count * $rn );
 }
 
 sub _eval_path {
@@ -369,13 +411,17 @@ sub _eval_fn {
         return _eval_expr($args[$i], $local_ctx // $ctx);
     };
 
+    return Data::ZPath::_Node->_wrap(!!0,   undef, undef) if $name eq 'false';
+    return Data::ZPath::_Node->_wrap(!!1,   undef, undef) if $name eq 'true';
+    return Data::ZPath::_Node->_wrap(undef, undef, undef) if $name eq 'null';
+
     if ($name eq 'count') {
         if (@args) {
             my @r = $eval_arg->(0);
-            return (Data::ZPath::_Node->_wrap(scalar(@r), undef, undef));
+            return Data::ZPath::_Node->_wrap(scalar(@r), undef, undef);
         }
         my $scope = $ctx->parentset // $ns;
-        return (Data::ZPath::_Node->_wrap(scalar(@$scope), undef, undef));
+        return Data::ZPath::_Node->_wrap(scalar(@$scope), undef, undef);
     }
 
     if ($name eq 'index') {
@@ -384,27 +430,32 @@ sub _eval_fn {
             my @r = $eval_arg->(0);
             my @out;
             for my $n (@r) {
-                my $k = $n->key;
-                push @out, Data::ZPath::_Node->_wrap((defined($k) && $k =~ /^\d+$/) ? 0+$k : undef, undef, undef)
-                    if defined($k) && $k =~ /^\d+$/;
+                if ( defined( my $i = $n->ix ) ) {
+                    push @out, Data::ZPath::_Node->_wrap(0+$i, undef, undef);
+                }
+                elsif ( defined( my $k = $n->key ) ) {
+                    push @out, Data::ZPath::_Node->_wrap(0+$k, undef, undef) if $k =~ /^[0-9]+$/;
+                }
             }
             return @out;
         }
 
         # index() within qualifier scope: index of THIS node in parentset; otherwise nodeset
         my $cur = $ns->[0];
-        return () unless $cur;
+        return unless $cur;
 
         my $scope = $ctx->parentset // $ns;
+        my $ix = $cur->ix;
+        return Data::ZPath::_Node->_wrap($ix, undef, undef) if defined $ix;
         my $id = $cur->id;
-        return () unless defined $id;
+        return unless defined $id;
         for (my $i = 0; $i < @$scope; $i++) {
             my $nid = $scope->[$i]->id;
             if (defined $nid && $nid eq $id) {
-                return (Data::ZPath::_Node->_wrap($i, undef, undef));
+                return Data::ZPath::_Node->_wrap($i, undef, undef);
             }
         }
-        return (Data::ZPath::_Node->_wrap(0, undef, undef));
+        return Data::ZPath::_Node->_wrap(0, undef, undef);
     }
 
     if ($name eq 'key') {
@@ -416,8 +467,8 @@ sub _eval_fn {
             } @r;
         }
         my $cur = $ns->[0];
-        return () unless $cur && defined $cur->key;
-        return (Data::ZPath::_Node->_wrap($cur->key, undef, undef));
+        return unless $cur && defined $cur->key;
+        return Data::ZPath::_Node->_wrap($cur->key, undef, undef);
     }
 
     if ($name eq 'union') {
@@ -444,32 +495,32 @@ sub _eval_fn {
     }
 
     if ($name eq 'is-first') {
-        my @i = _eval_fn({ t=>'fn', n=>'index', a=>[] }, $ctx);
-        return () unless @i;
-        return (Data::ZPath::_Node->_wrap($i[0]->primitive_value == 0 ? 1 : 0, undef, undef));
+        my $cur = $ns->[0];
+        return unless $cur && $cur->parent;
+        return Data::ZPath::_Node->_wrap($cur->ix == 0, undef, undef);
     }
 
     if ($name eq 'is-last') {
         my @i = _eval_fn({ t=>'fn', n=>'index', a=>[] }, $ctx);
         my @c = _eval_fn({ t=>'fn', n=>'count', a=>[] }, $ctx);
         return () unless @i && @c;
-        return (Data::ZPath::_Node->_wrap($i[0]->primitive_value == ($c[0]->primitive_value - 1) ? 1 : 0, undef, undef));
+        return (Data::ZPath::_Node->_wrap($i[0]->primitive_value == ($c[0]->primitive_value - 1) ? !!1 : !!0, undef, undef));
     }
 
     if ($name eq 'next' || $name eq 'prev') {
         my $cur = $ns->[0];
-        return () unless $cur && $cur->parent;
+        return unless $cur && $cur->parent;
         my $praw = $cur->parent->raw;
         my $k = $cur->key;
 
         if (ref($praw) eq 'ARRAY' && defined $k && $k =~ /^\d+$/) {
             my $ni = $name eq 'next' ? $k + 1 : $k - 1;
-            return () if $ni < 0 || $ni >= @$praw;
+            return if $ni < 0 || $ni >= @$praw;
             my $child = Data::ZPath::_Node->_wrap($praw->[$ni], $cur->parent, $ni);
             $child->with_slot(sub { if (@_) { $praw->[$ni] = $_[0] } return $praw->[$ni] }) unless ref($praw->[$ni]);
-            return ($child);
+            return $child;
         }
-        return ();
+        return;
     }
 
     if ($name eq 'string') {
@@ -495,9 +546,9 @@ sub _eval_fn {
             } @r;
         }
         my $cur = $ns->[0];
-        return () unless $cur;
+        return unless $cur;
         my $n = $cur->number_value;
-        return defined $n ? (Data::ZPath::_Node->_wrap($n, undef, undef)) : ();
+        return defined $n ? Data::ZPath::_Node->_wrap($n, undef, undef) : ();
     }
 
     if ($name eq 'value') {
@@ -505,24 +556,24 @@ sub _eval_fn {
             my @r = $eval_arg->(0);
             return map {
                 my $v = $_->primitive_value;
-                defined $v ? Data::ZPath::_Node->_wrap($v, undef, undef) : Data::ZPath::_Node->_wrap(undef, undef, undef)
+                Data::ZPath::_Node->_wrap($v, undef, undef)
             } @r;
         }
         my $cur = $ns->[0];
-        return () unless $cur;
-        return (Data::ZPath::_Node->_wrap($cur->primitive_value, undef, undef));
+        return unless $cur;
+        return Data::ZPath::_Node->_wrap($cur->primitive_value, undef, undef);
     }
 
     if ($name eq 'type') {
         if (@args) {
             my @r = $eval_arg->(0);
-            return ( Data::ZPath::_Node->_wrap('undefined', undef, undef) ) unless @r;
+            return Data::ZPath::_Node->_wrap('undefined', undef, undef) unless @r;
             return map {
                 Data::ZPath::_Node->_wrap($_->type, undef, undef)
             } @r;
         }
         my $cur = $ns->[0];
-        return (Data::ZPath::_Node->_wrap($cur ? $cur->type : 'undefined', undef, undef));
+        return Data::ZPath::_Node->_wrap($cur ? $cur->type : 'undefined', undef, undef);
     }
 
     # Math helpers: map numeric over input set
@@ -556,21 +607,21 @@ sub _eval_fn {
         }
 
         @in = grep { defined } @in;
-        return () unless @in;
+        return unless @in;
 
         if ($name eq 'sum') {
             my $s = 0;
             $s += $_ for @in;
-            return (Data::ZPath::_Node->_wrap($s, undef, undef));
+            return Data::ZPath::_Node->_wrap($s, undef, undef);
         }
         if ($name eq 'min') {
             my $m = $in[0];
             ( $_ < $m ) and ( $m = $_ ) for @in;
-            return (Data::ZPath::_Node->_wrap($m, undef, undef));
+            return Data::ZPath::_Node->_wrap($m, undef, undef);
         }
         my $m = $in[0];
         ( $_ > $m ) and ( $m = $_ ) for @in;
-        return (Data::ZPath::_Node->_wrap($m, undef, undef));
+        return Data::ZPath::_Node->_wrap($m, undef, undef);
     }
 
     # String helpers
@@ -628,10 +679,10 @@ sub _eval_fn {
     }
 
     if ($name eq 'format') {
-        croak "format(format, expression)" unless @args >= 2;
+        croak "format(format, expression)" unless @args >= 1;
         my @fmt = $eval_arg->(0);
         my $f = $fmt[0] ? ($fmt[0]->string_value // '') : '';
-        my @in = $eval_arg->(1);
+        my @in = @args > 1 ? $eval_arg->(1) : @$ns;
         return map {
             my $v = $_->primitive_value;
             Data::ZPath::_Node->_wrap(sprintf($f, $v), undef, undef)
@@ -639,12 +690,12 @@ sub _eval_fn {
     }
 
     if ($name eq 'index-of' || $name eq 'last-index-of') {
-        croak "$name(expression, search)" unless @args >= 2;
-        my @in = $eval_arg->(0);
-        my $search = ($eval_arg->(1))[0]->string_value // '';
+        croak "$name(search, expression)" unless @args >= 1;
+        my $search = ($eval_arg->(0))[0]->string_value // '';
+        my @in = @args > 1 ? $eval_arg->(1) : @$ns;
         return map {
             my $s = $_->string_value // '';
-            my $pos = $name eq 'index-of' ? index($s, $search) : rindex($s, $search);
+            my $pos = $name eq 'index-of' ? index($search, $s) : rindex($search, $s);
             Data::ZPath::_Node->_wrap($pos, undef, undef)
         } @in;
     }
@@ -667,8 +718,8 @@ sub _eval_fn {
     }
 
     if ($name eq 'substring') {
-        croak "substring(expression, start, length)" unless @args >= 3;
-        my @in = $eval_arg->(0);
+        croak "substring(expression, start, length)" unless @args >= 2;
+        my @in = @args > 2 ? $eval_arg->(0) : @$ns;
         my $start = ($eval_arg->(1))[0]->number_value // 0;
         my $len   = ($eval_arg->(2))[0]->number_value // 0;
         return map {
@@ -678,12 +729,11 @@ sub _eval_fn {
     }
 
     if ($name eq 'match' || $name eq 'matches') {
-        croak "match(pattern, expression)" unless @args >= 2;
+        croak "match(pattern, expression)" unless @args >= 1;
         my $pat = ($eval_arg->(0))[0]->string_value // '';
-        my $re = eval { qr/$pat/ };
-        croak "Invalid regex: $@" if $@;
+        my $re = _pattern_to_regexp( $pat );
 
-        my @in = $eval_arg->(1);
+        my @in = @args > 1 ? $eval_arg->(1) : @$ns;
         return map {
             my $s = $_->string_value // '';
             Data::ZPath::_Node->_wrap(($s =~ $re) ? 1 : 0, undef, undef)
@@ -691,26 +741,24 @@ sub _eval_fn {
     }
 
     if ($name eq 'replace') {
-        croak "replace(pattern, replace, expression)" unless @args >= 3;
+        croak "replace(pattern, replace, expression)" unless @args >= 2;
         my $pat = ($eval_arg->(0))[0]->string_value // '';
         my $rep = ($eval_arg->(1))[0]->string_value // '';
-        my $re = eval { qr/$pat/ };
-        croak "Invalid regex: $@" if $@;
+        my $re = _pattern_to_regexp( $pat );
 
-        my @in = $eval_arg->(2);
+        my @in = @args > 2 ? $eval_arg->(2) : @$ns;
         return map {
             my $s = $_->string_value // '';
-            $s =~ s/$re/$rep/g;
-            Data::ZPath::_Node->_wrap($s, undef, undef)
+            Data::ZPath::_Node->_wrap(_string_replace($s, $re, $rep), undef, undef)
         } @in;
     }
 
     if ($name eq 'join') {
-        croak "join(joiner, expression)" unless @args >= 2;
+        croak "join(joiner, expression)" unless @args >= 1;
         my $joiner = ($eval_arg->(0))[0]->string_value // '';
-        my @in = $eval_arg->(1);
+        my @in = @args > 1 ? $eval_arg->(1) : @$ns;
         my @ss = map { $_->string_value // '' } @in;
-        return (Data::ZPath::_Node->_wrap(join($joiner, @ss), undef, undef));
+        return Data::ZPath::_Node->_wrap(join($joiner, @ss), undef, undef);
     }
 
     # XML functions
@@ -746,8 +794,8 @@ sub _eval_fn {
         my @out;
         for my $n (@in) {
             my $raw = $n->raw;
-            if (ref($raw) eq 'HASH' && exists $raw->{__zpath_tag}) {
-                push @out, Data::ZPath::_Node->_wrap($raw->{__zpath_tag}, undef, undef);
+            if (blessed($raw) and $raw->isa('CBOR::Free::Tagged')) {
+                push @out, Data::ZPath::_Node->_wrap($raw->[0], undef, undef);
             }
         }
         return @out;
@@ -756,61 +804,36 @@ sub _eval_fn {
     croak "Unknown function '$name'";
 }
 
-sub _dedup_nodes {
-    my @nodes = @_;
-    my %seen;
-    my @out;
-    for my $n (@nodes) {
-        my $id = $n->id;
+sub _string_replace {
+    my ($string, $pattern, $replacement) = @_;
 
-        my $pv = $n->primitive_value;
-        if ( defined $pv and not ref $pv ) {
-            my $k = 'pv:' . $pv;
-            next if $seen{$k}++;
-            push @out, $n;
-            next;
-        }
+    my @matches = ( $string =~ /$pattern/p );
+    unshift @matches, ${^MATCH};
+    $string =~ s{$pattern}{
+        my $r = "$replacement";
+        $r =~ s{ \$ ([0-9]+) }{
+            $1 <= $#matches ? $matches[$1] : ''
+        }xeg;
+        $r;
+    }eg;
 
-        if ( not defined $id ) {
-            my $k = 'pv:__NULL__';
-            next if $seen{$k}++;
-            push @out, $n;
-            next;
-        }
-
-        next if $seen{$id}++;
-        push @out, $n;
-    }
-    return @out;
+    return $string;
 }
 
-sub _node_to_primitive {
-    my ($n) = @_;
-    return undef unless defined $n;
-    return $n->primitive_value;
+sub _dedup_nodes {
+    my %seen;
+    return grep { not $seen{$_->id}++ } @_;
 }
 
 sub _truthy {
     my ($n) = @_;
-    return 0 unless $n;
+    return !!0 unless $n;
 
     # Path-selected nodes are truthy by existence.
     my $id = $n->id;
-    return 1 if defined $id;
+    return !!1 if defined $id;
 
-    return _truthy_value($n);
-}
-
-sub _truthy_value {
-    my ($n) = @_;
-    return 0 unless $n;
-
-    my $v = $n->primitive_value;
-
-    return 0 if !defined $v;
-    return 0 if $v eq '' && !ref($v);
-    return 0 if !ref($v) && ($v eq '0' || lc($v) eq 'false' || lc($v) eq 'null');
-    return 1;
+    return !!$n->primitive_value;
 }
 
 sub _to_number {
@@ -825,20 +848,47 @@ sub _to_string {
     return $n->string_value;
 }
 
+
 sub _equals {
     my ($a, $b) = @_;
-    return 0 unless $a && $b;
+    return !!0 unless $a && $b;
 
-    my $av = $a->primitive_value;
-    my $bv = $b->primitive_value;
+    my $a_type = $a->type;
+    my $b_type = $b->type;
 
-    return 1 if !defined($av) && !defined($bv);
-    return 0 if !defined($av) || !defined($bv);
+    return $a_type eq 'null' if $b_type eq 'null';
+    return $b_type eq 'null' if $a_type eq 'null';
 
-    if (!ref($av) && !ref($bv) && looks_like_number($av) && looks_like_number($bv)) {
-        return (0 + $av) == (0 + $bv);
+    if ($a_type eq 'boolean' and $b_type eq 'boolean') {
+        my $av = !!$a->primative_value;
+        my $bv = !!$b->primative_value;
+
+        return $av == $bv;
     }
-    return "$av" eq "$bv";
+
+    if ($a_type eq 'number' and $b_type eq 'number') {
+        my $av = $a->number_value;
+        my $bv = $b->number_value;
+
+        # Floating point comparison
+        if ($av =~ /\./ or $bv =~ /\./) {
+            return abs($av-$bv) < $Epsilon;
+        }
+
+        return $av == $bv;
+    }
+
+    my @string_like = qw( string text attr comment );
+    if ( grep { $a_type eq $_ } @string_like
+    and  grep { $b_type eq $_ } @string_like ) {
+        my $av = $a->string_value;
+        my $bv = $b->string_value;
+        return "$av" eq "$bv";
+    }
+
+    return unless $a->id;
+    return unless $b->id;
+    return $a->id eq $b->id;
 }
 
 1;
@@ -907,21 +957,41 @@ Top-level expression may be a comma-separated list of expressions.
 
 =head1 METHODS
 
-=head2 new($expr)
+=head2 C<< new($expr) >>
 
 Compile a ZPath expression.
 
-=head2 first($root)
+=head2 C<< first($root) >>
 
 Evaluate and return the first primitive value.
 
-=head2 all($root)
+=head2 C<< all($root) >>
 
 Evaluate and return all primitive values.
 
-=head2 each($root, $callback)
+=head2 C<< each($root, $callback) >>
 
 Evaluate and invoke callback for each matched Perl scalar, aliasing C<$_> so modifications write back.
+
+=cut
+
+=head1 PACKAGE VARIABLES
+
+=over
+
+=item C<< $Data::ZPath::Epsilon >>
+
+The desired error tolerance when the zpath C<< == >> and C<< != >> operators
+compare floating point numbers for equality. Defaults to 1e-08.
+
+If you need to change this, it is recommended that you use C<local> in the
+smallest scope possible.
+
+=item C<< $Data::ZPath::UseBigInt >>
+
+If true, the C<< number("123...") >> function will return a L<Math::BigInt>
+object for any numbers too big to be represented accurately by Perl's native
+numeric type. Defaults to true.
 
 =cut
 

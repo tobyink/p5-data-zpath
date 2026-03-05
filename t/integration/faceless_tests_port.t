@@ -1,11 +1,13 @@
 use Test2::V0;
 
+use CBOR::Free;
+use Data::Dumper;
 use Data::ZPath;
 use JSON::PP qw(decode_json);
-use Scalar::Util qw(looks_like_number);
+use Scalar::Util qw(looks_like_number blessed);
 use XML::LibXML;
 
-my $tests_file = 't/integration/data/tests.txt';
+my $tests_file = 't/share/tests.txt';
 ok( -f $tests_file, 'upstream tests.txt exists in repository' ) or BAIL_OUT( 'missing tests file' );
 
 open my $fh, '<', $tests_file or die "Unable to read $tests_file: $!";
@@ -37,10 +39,10 @@ for my $idx ( 0 .. $#lines ) {
             $roots{XML} = XML::LibXML->load_xml( string => $buffer );
         }
         elsif ( $mode eq 'CBOR' ) {
-            $roots{CBOR_RAW} = $buffer;
+            # tests.txt doesn't even contain real CBOR
             $roots{CBOR} = {
-                tagged    => { __zpath_tag => 123, value => 'John' },
-                1         => 5,
+                tagged => CBOR::Free::Tagged->new(123, "John"),
+                1      => 5,
             };
         }
         $mode = undef;
@@ -65,6 +67,10 @@ for my $idx ( 0 .. $#lines ) {
     next unless length $expr;
     next unless length $expect;
 
+    if ( $expect eq 'true' or $expect eq 'false' or $expect eq 'null' ) {
+        $expect .= '()';
+    }
+
     push @cases, {
         line    => $idx + 1,
         mode    => $current_case_mode,
@@ -75,6 +81,13 @@ for my $idx ( 0 .. $#lines ) {
 
 ok( scalar( @cases ) > 0, 'parsed cases from tests.txt' );
 
+use Data::Dumper;
+do {
+    #local $Data::Dumper::Sortkeys = 1;
+    #my $node = Data::ZPath::_Node->from_root( $roots{JSON} );
+    #diag Dumper( $node->dump );
+};
+
 for my $case ( @cases ) {
     my $label = sprintf '[%s:%d] %s => %s',
         $case->{mode},
@@ -83,26 +96,28 @@ for my $case ( @cases ) {
         $case->{expect};
 
     subtest $label => sub {
-        if ( $case->{mode} eq 'CBOR' ) {
-            note 'CBOR fixture is stored unmodified from upstream tests.txt and approximated as Perl data for execution.';
-        }
-
         if ( $case->{expect} eq 'ERROR' ) {
             like(
-                dies { _run_expr( $case, \%roots ) },
+                dies { _run_expr( $case, { %roots, error => !!1 } ) },
                 qr/.+/,
                 'expression throws error'
             );
             return;
         }
 
-        my @expected = $case->{expect} =~ m{^/}
-            ? _run_expr( $case, \%roots, 'expect' )
-            : _parse_expected_tokens( $case->{expect} );
+        if ( $case->{expect} eq 'NULL' ) {
+            my @actual = _run_expr( $case, \%roots, 'expr' );
+            ok( @actual==0, 'no results found' )
+                or diag "FAIL: " . Dumper( \@actual );
+            return;
+        }
 
-        my @actual = _run_expr( $case, \%roots );
+        my @actual   = _run_expr( $case, \%roots, 'expr' );
+        my @expected = _run_expr( $case, \%roots, 'expect' );
 
-        is( [ sort @actual ], [ sort @expected ], 'result tokens match upstream expectation' );
+        no warnings 'uninitialized';
+        is( [ sort @actual ], [ sort @expected ], 'result tokens match upstream expectation' )
+            or diag "FAIL: " . Dumper( \@actual, \@expected );
     };
 }
 
@@ -112,64 +127,27 @@ sub _run_expr {
     my ( $case, $roots, $key ) = @_;
     $key ||= 'expr';
     my $root = $roots->{ $case->{mode} };
-    my $path = Data::ZPath->new( $case->{$key} );
-    my @raw = $path->all( $root );
-    return map { _stringify_actual_token( $_ ) } @raw;
-}
+    my @raw;
 
-sub _parse_expected_tokens {
-    my ( $expect ) = @_;
-    return () if $expect eq 'NULL';
+    local $SIG{ALRM} = sub { fail "timed out"; die "timed out" };
+    alarm 3;
 
-    my @tokens;
-    my $buf = '';
-    my $in_quote = 0;
-
-    for my $ch ( split //, $expect ) {
-        if ( $ch eq '"' ) {
-            $in_quote = $in_quote ? 0 : 1;
-            $buf .= $ch;
-            next;
-        }
-
-        if ( $ch eq ',' and not $in_quote ) {
-            push @tokens, _stringify_expected_token( $buf );
-            $buf = '';
-            next;
-        }
-
-        $buf .= $ch;
+    local $@;
+    my $ok = eval {
+        my $path = Data::ZPath->new( $case->{$key} );
+        @raw = $path->evaluate( $root );
+        1;
+    };
+    if (not $ok) {
+        my $e = $@;
+        diag "EXCEPTION FOR @{[ uc($key) ]}: $e" unless $roots->{error};
+        die $e;
     }
 
-    push @tokens, _stringify_expected_token( $buf ) if length $buf;
+    alarm 0;
 
-    return @tokens;
-}
-
-sub _stringify_expected_token {
-    my ( $tok ) = @_;
-    $tok =~ s/^\s+|\s+$//g;
-
-    if ( $tok =~ /^"(.*)"$/s ) {
-        my $s = $1;
-        $s =~ s/\\"/"/g;
-        return $s;
-    }
-
-    return '__NULL__' if $tok eq 'null';
-    return '1' if $tok eq 'true';
-    return '0' if $tok eq 'false';
-    return 0 + $tok if $tok =~ /^-?(?:\d+(?:\.\d+)?|\.\d+)$/;
-    return $tok;
-}
-
-sub _stringify_actual_token {
-    my ( $tok ) = @_;
-    return '__NULL__' unless defined $tok;
-
-    if ( not ref $tok and looks_like_number( $tok ) ) {
-        return 0 + $tok;
-    }
-
-    return "$tok";
+    return map {
+        my $val = $_->value;
+        blessed($val) ? $_->string_value : $val;
+    } @raw;
 }

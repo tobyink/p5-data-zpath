@@ -4,6 +4,7 @@ use warnings;
 package Data::ZPath::_Ctx;
 
 use Data::ZPath::_Node;
+use Scalar::Util qw(blessed);
 
 our $VERSION = '0.001';
 

@@ -19,8 +19,13 @@ subtest 'each() mutates Perl scalar via $_ proxy' => sub {
 };
 
 subtest 'basic XML navigation' => sub {
-    my $dom = XML::LibXML->load_xml(string => '<foo><bar>5</bar></foo>');
-    my $p   = Data::ZPath->new('./foo/bar');
+    my $dom = XML::LibXML->load_xml(string => '<foo bar="1"><bar>5</bar></foo>');
+    my $p   = Data::ZPath->new('foo/bar');
+
+#    use Data::Dumper;
+#    local $Data::Dumper::Sortkeys = 1;
+#    warn Dumper( Data::ZPath::_Node->from_root($dom)->dump );
+
     is($p->first($dom), '5', 'XML textContent used');
     is([$p->all($dom)], ['5'], 'XML list');
 };
@@ -51,7 +56,7 @@ subtest 'count/index helpers' => sub {
         string => '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>'
     );
 
-    my $p = Data::ZPath->new('./table/**/tr[count(td) == 2]');
+    my $p = Data::ZPath->new('table/**/tr[count(td) == 2]');
     is(scalar($p->all($dom)), 1, 'row with 2 tds');
 };
 
@@ -76,10 +81,10 @@ subtest 'operators require whitespace' => sub {
 
 subtest 'xml attributes' => sub {
     my $dom = XML::LibXML->load_xml(string => '<root><table class="defn"/></root>');
-    my $p1 = Data::ZPath->new('./root/table[@class == "defn"]');
+    my $p1 = Data::ZPath->new('root/table[@class == "defn"]');
     is(scalar($p1->all($dom)), 1, 'attribute qualifier works');
 
-    my $p2 = Data::ZPath->new('./root/table/@class');
+    my $p2 = Data::ZPath->new('root/table/@class');
     is([$p2->all($dom)], ['defn'], 'attribute node value');
 };
 
