@@ -216,7 +216,7 @@ numeric type. Defaults to true.
 
 Ignore XML text nodes consisting only of whitespace. Default true.
 
-=cut
+=back
 
 =head1 BUGS
 
