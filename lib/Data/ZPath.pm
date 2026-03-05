@@ -177,6 +177,18 @@ Evaluate and return the first primitive value.
 
 Evaluate and return all primitive values.
 
+=head2 C<< evaluate($root, %options) >>
+
+Evaluate and return matched L<Data::ZPath::Node> objects.
+
+This is the low-level API used by the convenience methods.
+The optional C<first =E<gt> 1> flag short-circuits after the first
+match.
+
+=head2 C<< last($root) >>
+
+Evaluate and return the last primitive value.
+
 =head2 C<< each($root, $callback) >>
 
 Evaluate and invoke callback for each matched Perl scalar, aliasing C<$_> so modifications write back.
