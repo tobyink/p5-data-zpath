@@ -259,7 +259,7 @@ sub _eval_path {
                 my @res = _eval_fn({ t => 'fn', n => $seg->{n}, a => $seg->{a} }, $seg_ctx);
                 push @out, @res;
             }
-            @next = _dedup_nodes(@out);
+            @next = @out;
         }
         elsif ($seg->{k} eq 'name') {
             my $name = $seg->{n};
@@ -349,7 +349,8 @@ sub _eval_fn {
             my @r = $eval_arg->(0);
             return (Data::ZPath::_Node->_wrap(scalar(@r), undef, undef));
         }
-        return (Data::ZPath::_Node->_wrap(scalar(@$ns), undef, undef));
+        my $scope = $ctx->parentset // $ns;
+        return (Data::ZPath::_Node->_wrap(scalar(@$scope), undef, undef));
     }
 
     if ($name eq 'index') {
@@ -365,14 +366,15 @@ sub _eval_fn {
             return @out;
         }
 
-        # index() within current nodeset: index of THIS node in nodeset; if ambiguous, choose first
+        # index() within qualifier scope: index of THIS node in parentset; otherwise nodeset
         my $cur = $ns->[0];
         return () unless $cur;
 
+        my $scope = $ctx->parentset // $ns;
         my $id = $cur->id;
         return () unless defined $id;
-        for (my $i = 0; $i < @$ns; $i++) {
-            my $nid = $ns->[$i]->id;
+        for (my $i = 0; $i < @$scope; $i++) {
+            my $nid = $scope->[$i]->id;
             if (defined $nid && $nid eq $id) {
                 return (Data::ZPath::_Node->_wrap($i, undef, undef));
             }
@@ -489,6 +491,7 @@ sub _eval_fn {
     if ($name eq 'type') {
         if (@args) {
             my @r = $eval_arg->(0);
+            return ( Data::ZPath::_Node->_wrap('undefined', undef, undef) ) unless @r;
             return map {
                 Data::ZPath::_Node->_wrap($_->type, undef, undef)
             } @r;
@@ -518,21 +521,30 @@ sub _eval_fn {
     }
 
     if ($name eq 'sum' || $name eq 'min' || $name eq 'max') {
-        my @in = $num_input->(0);
+        my @in;
+        if (@args) {
+            for my $i ( 0 .. $#args ) {
+                push @in, $num_input->($i);
+            }
+        } else {
+            @in = $num_input->(0);
+        }
+
         @in = grep { defined } @in;
         return () unless @in;
 
         if ($name eq 'sum') {
-            my $s = 0; $s += $_ for @in;
+            my $s = 0;
+            $s += $_ for @in;
             return (Data::ZPath::_Node->_wrap($s, undef, undef));
         }
         if ($name eq 'min') {
             my $m = $in[0];
-            ( $_ < $m ) && ( $m = $_ ) for @in;
+            ( $_ < $m ) and ( $m = $_ ) for @in;
             return (Data::ZPath::_Node->_wrap($m, undef, undef));
         }
         my $m = $in[0];
-        ( $_ > $m ) && ( $m = $_ ) for @in;
+        ( $_ > $m ) and ( $m = $_ ) for @in;
         return (Data::ZPath::_Node->_wrap($m, undef, undef));
     }
 
@@ -602,9 +614,9 @@ sub _eval_fn {
     }
 
     if ($name eq 'index-of' || $name eq 'last-index-of') {
-        croak "$name(search, expression)" unless @args >= 2;
-        my $search = ($eval_arg->(0))[0]->string_value // '';
-        my @in = $eval_arg->(1);
+        croak "$name(expression, search)" unless @args >= 2;
+        my @in = $eval_arg->(0);
+        my $search = ($eval_arg->(1))[0]->string_value // '';
         return map {
             my $s = $_->string_value // '';
             my $pos = $name eq 'index-of' ? index($s, $search) : rindex($s, $search);
@@ -640,7 +652,7 @@ sub _eval_fn {
         } @in;
     }
 
-    if ($name eq 'match') {
+    if ($name eq 'match' || $name eq 'matches') {
         croak "match(pattern, expression)" unless @args >= 2;
         my $pat = ($eval_arg->(0))[0]->string_value // '';
         my $re = eval { qr/$pat/ };
@@ -725,11 +737,22 @@ sub _dedup_nodes {
     my @out;
     for my $n (@nodes) {
         my $id = $n->id;
-        # Primitive nodes (no id) are not deduped
-        if (!defined $id) {
+
+        my $pv = $n->primitive_value;
+        if ( defined $pv and not ref $pv ) {
+            my $k = 'pv:' . $pv;
+            next if $seen{$k}++;
             push @out, $n;
             next;
         }
+
+        if ( not defined $id ) {
+            my $k = 'pv:__NULL__';
+            next if $seen{$k}++;
+            push @out, $n;
+            next;
+        }
+
         next if $seen{$id}++;
         push @out, $n;
     }

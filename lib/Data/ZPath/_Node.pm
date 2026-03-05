@@ -61,6 +61,9 @@ sub type {
     my ($self) = @_;
     my $x = $self->{raw};
 
+    if (blessed($x) && $x->isa('XML::LibXML::Namespace')) {
+        return 'attr';
+    }
     if (blessed($x) && $x->isa('XML::LibXML::Attr')) {
         return 'attr';
     }
@@ -90,6 +93,9 @@ sub primitive_value {
     if (blessed($x) && $x->isa('XML::LibXML::Document')) {
         my $de = $x->documentElement;
         return defined($de) ? $de->textContent : undef;
+    }
+    if (blessed($x) && $x->isa('XML::LibXML::Namespace')) {
+        return $x->declaredURI // $x->nodeValue // '';
     }
     if (blessed($x) && $x->isa('XML::LibXML::Attr')) {
         return $x->getValue;
