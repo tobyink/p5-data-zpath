@@ -48,6 +48,16 @@ describe "class `$CLASS`" => sub {
 		is( Data::ZPath::NodeList->new->first, U(), 'first on empty list is undef' );
 	};
 
+	tests 'method `grep`' => sub {
+		my $node1 = Data::ZPath::Node->from_root('a');
+		my $node2 = Data::ZPath::Node->from_root('b');
+		my $node3 = Data::ZPath::Node->from_root('c');
+		my $list = Data::ZPath::NodeList->new( $node1, $node2, $node3 );
+
+		is( [ $list->grep(sub { $_ eq 'b' })->all ], [ $node2 ],
+			'grep filters the list' );
+	};
+
 	tests 'method `last`' => sub {
 		my $node1 = Data::ZPath::Node->from_root('a');
 		my $node2 = Data::ZPath::Node->from_root('b');
@@ -55,6 +65,26 @@ describe "class `$CLASS`" => sub {
 
 		is( $list->last, $node2, 'last returns last node' );
 		is( Data::ZPath::NodeList->new->last, U(), 'last on empty list is undef' );
+	};
+
+	tests 'method `map`' => sub {
+		my $node1 = Data::ZPath::Node->from_root('a');
+		my $node2 = Data::ZPath::Node->from_root('b');
+		my $node3 = Data::ZPath::Node->from_root('c');
+		my $list = Data::ZPath::NodeList->new( $node1, $node2, $node3 );
+
+		is( [ $list->map(sub { uc $_ })->values ], [ qw/ A B C / ],
+			'map transforms the list' );
+	};
+
+	tests 'method `values`' => sub {
+		my $node1 = Data::ZPath::Node->from_root('a');
+		my $node2 = Data::ZPath::Node->from_root('b');
+		my $node3 = Data::ZPath::Node->from_root('c');
+		my $list = Data::ZPath::NodeList->new( $node1, $node2, $node3 );
+
+		is( [ $list->values ], [ qw/ a b c / ],
+			'values returns every node, but as raw values' );
 	};
 };
 

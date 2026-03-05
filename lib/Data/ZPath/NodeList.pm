@@ -12,9 +12,19 @@ sub new {
 	return bless \@nodes, $class;
 }
 
+sub _new_or_list {
+	my ( $class, @nodes ) = @_;
+	wantarray ? @nodes : $class->new( @nodes );
+}
+
 sub all {
 	my ( $self ) = @_;
 	return @$self;
+}
+
+sub values {
+	my ( $self ) = @_;
+	return map $_->value, @$self;
 }
 
 sub first {
@@ -32,9 +42,30 @@ sub find {
 	my ( $self, $zpath ) = @_;
 	$zpath = Data::ZPath->new( $zpath ) unless blessed($zpath);
 
-	my @out = map $_->find($zpath), $self->all;
-	return @out if wantarray;
-	return ref($self)->new(@out);
+	return ref($self)->_new_or_list( map $_->find($zpath), $self->all );
+}
+
+sub grep {
+	my ( $self, $cb ) = @_;
+	ref($self)->_new_or_list( grep {
+		my $node = $_;
+		local $_ = $node->value;
+		$cb->();
+	} $self->all );
+}
+
+sub map {
+	my ( $self, $cb ) = @_;
+	ref($self)->_new_or_list( map {
+		my $node = $_;
+		local $_ = $node->value;
+		map {
+			my $new = $_;
+			blessed($new) && $new->isa('Data::ZPath::NodeList') ? $new->all :
+			blessed($new) && $new->isa('Data::ZPath::Node') ? $new :
+			Data::ZPath::Node->from_root( $new )
+		} $cb->();
+	} $self->all );
 }
 
 1;

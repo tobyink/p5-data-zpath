@@ -60,8 +60,7 @@ sub evaluate {
 		last if ( $opts{first} and @out );
 	}
 
-	return @out if $wantarray;
-	return Data::ZPath::NodeList->new(@out);
+	return Data::ZPath::NodeList->_new_or_list(@out);
 }
 
 sub all {
@@ -175,7 +174,7 @@ Evaluate and return the first primitive value.
 
 Evaluate and return all primitive values.
 
-=head2 C<< evaluate($root, %options) >>
+=head2 C<< evaluate($root) >>
 
 Evaluate matches.
 
@@ -184,8 +183,6 @@ objects. In scalar context, returns a
 L<Data::ZPath::NodeList> object wrapping those nodes.
 
 This is the low-level API used by the convenience methods.
-The optional C<first =E<gt> 1> flag short-circuits after the first
-match.
 
 =head2 C<< last($root) >>
 
