@@ -66,6 +66,23 @@ subtest 'top-level comma list and union' => sub {
     ok(scalar($p2->all($h)) >= 3, 'union merges duplicates when nodes repeat');
 };
 
+
+subtest 'evaluate accepts Data::ZPath::_Node as context' => sub {
+	my $h = { foo => [
+		{ bar => 10 },
+		{ bar => 20 },
+	] };
+
+	my $p1 = Data::ZPath->new('foo');
+	my $p2 = Data::ZPath->new('./bar');
+	my $p3 = Data::ZPath->new('foo/bar');
+
+	my @results1 = map { $p2->all($_) } $p1->evaluate($h);
+	my @results2 = $p3->all($h);
+
+	is(\@results1, \@results2, 'node context matches direct query');
+};
+
 subtest 'operators require whitespace' => sub {
     like(
         dies { Data::ZPath->new('1+2') },

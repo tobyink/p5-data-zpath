@@ -9,11 +9,19 @@ use Scalar::Util qw(blessed);
 our $VERSION = '0.001';
 
 sub new {
-    my ($class, $root) = @_;
-    my $root_node = Data::ZPath::_Node->from_root($root);
-    return bless {
-        root      => $root_node,
-        nodeset   => [$root_node],
+	my ($class, $root) = @_;
+
+	my $root_node;
+	if ( blessed($root) and $root->isa('Data::ZPath::_Node') ) {
+		$root_node = $root;
+	}
+	else {
+		$root_node = Data::ZPath::_Node->from_root($root);
+	}
+
+	return bless {
+		root      => $root_node,
+		nodeset   => [$root_node],
         parentset => undef,
     }, $class;
 }
