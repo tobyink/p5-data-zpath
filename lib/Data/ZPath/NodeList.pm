@@ -104,8 +104,7 @@ Returns all nodes as a list.
 
 Returns all node values as a list.
 
-In list context, this returns one value per node. In scalar context,
-Perl list operators return the final value in the list.
+Equivalent to C<< map { $_->value } $nodelist->all >>.
 
 =head2 C<< first >>
 
