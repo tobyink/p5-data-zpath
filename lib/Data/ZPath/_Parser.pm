@@ -9,7 +9,7 @@ use Data::ZPath::_Lexer;
 our $VERSION = '0.001';
 
 sub _parse_top_level_terms {
-	my ( $src ) = @_;
+	my ($src) = @_;
 
 	my @parts = _split_top_level_commas($src);
 	my @terms;
@@ -25,7 +25,7 @@ sub _parse_top_level_terms {
 }
 
 sub _split_top_level_commas {
-	my ( $src ) = @_;
+	my ($src) = @_;
 	my @out;
 
 	my $depth_paren  = 0;
@@ -70,7 +70,7 @@ sub _split_top_level_commas {
 }
 
 sub _trim {
-	my ( $s ) = @_;
+	my ($s) = @_;
 	$s =~ s/^\s+//;
 	$s =~ s/\s+$//;
 	return $s;
@@ -98,7 +98,7 @@ sub _trim {
 sub _parse_expression { _parse_ternary(@_) }
 
 sub _parse_ternary {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	my $cond = _parse_or($lx);
 
 	if ( $lx->peek_kind eq 'QMARK' ) {
@@ -113,7 +113,7 @@ sub _parse_ternary {
 }
 
 sub _bin_left_assoc {
-	my ( $lx, $next_parser, $ops ) = @_;
+	my ($lx, $next_parser, $ops) = @_;
 	my $left = $next_parser->($lx);
 
 	while ( 1 ) {
@@ -128,52 +128,52 @@ sub _bin_left_assoc {
 }
 
 sub _parse_or {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_and, { OROR => 1 });
 }
 
 sub _parse_and {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_bitor, { ANDAND => 1 });
 }
 
 sub _parse_bitor {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_bitxor, { BOR => 1 });
 }
 
 sub _parse_bitxor {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_bitand, { BXOR => 1 });
 }
 
 sub _parse_bitand {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_equality, { BAND => 1 });
 }
 
 sub _parse_equality {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_rel, { EQEQ => 1, NEQ => 1 });
 }
 
 sub _parse_rel {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_add, { GE => 1, LE => 1, GT => 1, LT => 1 });
 }
 
 sub _parse_add {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_mul, { PLUS => 1, MINUS => 1 });
 }
 
 sub _parse_mul {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	return _bin_left_assoc($lx, \&_parse_unary, { STAR => 1, SLASH => 1, PCT => 1 });
 }
 
 sub _parse_unary {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	my $k = $lx->peek_kind;
 	if ( $k eq 'NOT' || $k eq 'BNOT' ) {
 		my $op = $lx->next_tok->{v};
@@ -184,7 +184,7 @@ sub _parse_unary {
 }
 
 sub _parse_primary {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	my $k = $lx->peek_kind;
 
 	if ( $k eq 'NUMBER' ) {
@@ -221,7 +221,7 @@ sub _parse_primary {
 }
 
 sub _parse_path_expr {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 
 	my @segs;
 
@@ -292,7 +292,7 @@ sub _parse_path_expr {
 }
 
 sub _parse_path_segment {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 
 	my $k = $lx->peek_kind;
 
@@ -335,7 +335,7 @@ sub _parse_path_segment {
 }
 
 sub _parse_qualifiers {
-	my ( $lx ) = @_;
+	my ($lx) = @_;
 	my @q;
 
 	while ( $lx->peek_kind eq 'LBRACK' ) {

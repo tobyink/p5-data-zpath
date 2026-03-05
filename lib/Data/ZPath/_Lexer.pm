@@ -36,7 +36,7 @@ sub expect {
 }
 
 sub _is_ws {
-	my ( $c ) = @_;
+	my ($c) = @_;
 	return defined $c && $c =~ /\s/;
 }
 
@@ -50,7 +50,7 @@ sub _tokenize {
 
 	my $push = sub { push @t, @_ };
 	my $prev_sig = sub {
-		my ( $idx ) = @_;
+		my ($idx) = @_;
 		for ( my $j = $idx - 1; $j >= 0; $j-- ) {
 			next if $c[$j] =~ /\s/;
 			return $c[$j];
@@ -58,7 +58,7 @@ sub _tokenize {
 		return undef;
 	};
 	my $next_sig = sub {
-		my ( $idx ) = @_;
+		my ($idx) = @_;
 		for ( my $j = $idx + 1; $j < $n; $j++ ) {
 			next if $c[$j] =~ /\s/;
 			return $c[$j];
@@ -66,7 +66,7 @@ sub _tokenize {
 		return undef;
 	};
 	my $ws_on_both = sub {
-		my ( $left, $right ) = @_;
+		my ($left, $right) = @_;
 		return ( _is_ws($left) and _is_ws($right) );
 	};
 
@@ -247,7 +247,7 @@ sub _tokenize {
 }
 
 sub _unescape_char {
-	my ( $c ) = @_;
+	my ($c) = @_;
 	return "\n" if $c eq 'n';
 	return "\r" if $c eq 'r';
 	return "\t" if $c eq 't';
@@ -255,7 +255,7 @@ sub _unescape_char {
 }
 
 sub _read_name {
-	my ( $chars, $i ) = @_;
+	my ($chars, $i) = @_;
 	my $n = @$chars;
 
 	my %delim = map { $_ => 1 } split //, "\n\r\t()[]/,=&|!<># ";
