@@ -26,9 +26,10 @@ use Data::Dumper;
 
 describe "class `$CLASS`" => sub {
 
-	tests 'blah blah blah' => sub {
+	tests 'method `new`' => sub {
 	
-		pass;
+		my $p = Data::ZPath->new('foo');
+		ok( $p->isa('Data::ZPath'), 'constructed an object' );
 	};
 };
 

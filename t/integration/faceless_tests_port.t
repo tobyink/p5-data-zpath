@@ -107,8 +107,7 @@ for my $case ( @cases ) {
 
         if ( $case->{expect} eq 'NULL' ) {
             my @actual = _run_expr( $case, \%roots, 'expr' );
-            ok( @actual==0, 'no results found' )
-                or diag "FAIL: " . Dumper( \@actual );
+            is( \@actual, [], 'no results found' );
             return;
         }
 
@@ -116,8 +115,7 @@ for my $case ( @cases ) {
         my @expected = _run_expr( $case, \%roots, 'expect' );
 
         no warnings 'uninitialized';
-        is( [ sort @actual ], [ sort @expected ], 'result tokens match upstream expectation' )
-            or diag "FAIL: " . Dumper( \@actual, \@expected );
+        is( [ sort @actual ], [ sort @expected ], 'result tokens match upstream expectation' );
     };
 }
 
