@@ -11,7 +11,7 @@ use Scalar::Util qw(blessed refaddr);
 use Data::ZPath::Node;
 
 sub _pattern_to_regexp {
-	my ($pat) = @_;
+	my ( $pat ) = @_;
 
 	for my $candidate ( qw{ / | : " ' }, '#' ) {
 		if ( index($pat, $candidate) < 0 ) {
@@ -24,7 +24,7 @@ sub _pattern_to_regexp {
 }
 
 sub _eval_expr {
-	my ($ast, $ctx) = @_;
+	my ( $ast, $ctx ) = @_;
 
 	my $t = $ast->{t};
 
@@ -159,13 +159,13 @@ sub _eval_expr {
 # Reference implementation of ZPath is in Java, which has a sane
 # floating point modulus opertator. Try to implement equivalent in Perl.
 sub _floaty_modulus {
-	my ($ln, $rn) = @_;
+	my ( $ln, $rn ) = @_;
 	my $count = POSIX::floor($ln / $rn);
 	$ln - ( $count * $rn );
 }
 
 sub _eval_path {
-	my ($path_ast, $ctx) = @_;
+	my ( $path_ast, $ctx ) = @_;
 
 	my @current = @{$ctx->nodeset};
 	my $parentset = $ctx->parentset;
@@ -333,7 +333,7 @@ sub _eval_path {
 }
 
 sub _eval_fn {
-	my ($fn_ast, $ctx) = @_;
+	my ( $fn_ast, $ctx ) = @_;
 	my $name = $fn_ast->{n};
 	my @args = @{$fn_ast->{a}};
 
@@ -341,7 +341,7 @@ sub _eval_fn {
 
 	# helpers
 	my $eval_arg = sub {
-		my ($i, $local_ctx) = @_;
+		my ( $i, $local_ctx ) = @_;
 		return _eval_expr($args[$i], $local_ctx // $ctx);
 	};
 
@@ -524,7 +524,7 @@ sub _eval_fn {
 
 	# Math helpers: map numeric over input set
 	my $num_input = sub {
-		my ($expr_idx) = @_;
+		my ( $expr_idx ) = @_;
 		my @in = @args ? $eval_arg->($expr_idx) : @$ns;
 		return map { $_->number_value } @in;
 	};
@@ -572,7 +572,7 @@ sub _eval_fn {
 
 	# String helpers
 	my $str_input = sub {
-		my ($expr_idx) = @_;
+		my ( $expr_idx ) = @_;
 		my @in = @args ? $eval_arg->($expr_idx) : @$ns;
 		return map { $_->string_value } @in;
 	};
@@ -751,7 +751,7 @@ sub _eval_fn {
 }
 
 sub _string_replace {
-	my ($string, $pattern, $replacement) = @_;
+	my ( $string, $pattern, $replacement ) = @_;
 
 	my @matches = ( $string =~ /$pattern/p );
 	unshift @matches, ${^MATCH};
@@ -781,27 +781,27 @@ sub _dedup_nodes {
 }
 
 sub _truthy {
-	my ($n) = @_;
+	my ( $n ) = @_;
 	return !!0 unless $n;
 	my $pv = $n->primitive_value;
 	return !!$pv;
 }
 
 sub _to_number {
-	my ($n) = @_;
+	my ( $n ) = @_;
 	return undef unless $n;
 	return $n->number_value;
 }
 
 sub _to_string {
-	my ($n) = @_;
+	my ( $n ) = @_;
 	return undef unless $n;
 	return $n->string_value;
 }
 
 
 sub _equals {
-	my ($a, $b) = @_;
+	my ( $a, $b ) = @_;
 	return !!0 unless $a && $b;
 
 	my $a_type = $a->type;
