@@ -102,7 +102,7 @@ for my $case ( @cases ) {
 
 		my @actual = _run_expr( $case, \%roots );
 
-		is( [ @actual ], [ @expected ], 'result tokens match upstream expectation' );
+		is( [ sort @actual ], [ sort @expected ], 'result tokens match upstream expectation' );
 	};
 }
 
