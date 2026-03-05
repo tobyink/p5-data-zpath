@@ -8,6 +8,7 @@ use Carp          qw(croak);
 use Data::ZPath::_Ctx;
 use Data::ZPath::_Lexer;
 use Data::ZPath::Node;
+use Data::ZPath::NodeList;
 use Data::ZPath::_Parser;
 use Data::ZPath::_ScalarProxy;
 use Data::ZPath::_Evaluate;
@@ -20,6 +21,7 @@ our @CARP_NOT = qw(
 	Data::ZPath::_Ctx
 	Data::ZPath::_Lexer
 	Data::ZPath::Node
+	Data::ZPath::NodeList
 	Data::ZPath::_Parser
 	Data::ZPath::_ScalarProxy
 	Data::ZPath::_Evaluate
@@ -48,16 +50,22 @@ sub new {
 
 sub evaluate {
 	my ( $self, $root, %opts ) = @_;
+	my $wantarray = wantarray;
 
 	my $ctx = Data::ZPath::_Ctx->new($root);
 	my @out;
 
 	for my $term (@{$self->{terms}}) {
 		push @out, Data::ZPath::_Evaluate::_eval_expr($term, $ctx);
-		return @out if $opts{first} && @out;
+
+		if ( $opts{first} and @out ) {
+			return @out if $wantarray;
+			last;
+		}
 	}
 
-	return @out;
+	return @out if $wantarray;
+	return Data::ZPath::NodeList->new(@out);
 }
 
 sub all {
@@ -179,7 +187,11 @@ Evaluate and return all primitive values.
 
 =head2 C<< evaluate($root, %options) >>
 
-Evaluate and return matched L<Data::ZPath::Node> objects.
+Evaluate matches.
+
+In list context, returns a list of L<Data::ZPath::Node>
+objects. In scalar context, returns a
+L<Data::ZPath::NodeList> object wrapping those nodes.
 
 This is the low-level API used by the convenience methods.
 The optional C<first =E<gt> 1> flag short-circuits after the first

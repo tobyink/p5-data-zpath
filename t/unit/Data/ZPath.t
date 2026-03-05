@@ -22,7 +22,6 @@ the same terms as the Perl 5 programming language system itself.
 
 use Test2::V0 -target => 'Data::ZPath';
 use Test2::Tools::Spec;
-use Data::Dumper;
 
 describe "class `$CLASS`" => sub {
 
@@ -30,6 +29,26 @@ describe "class `$CLASS`" => sub {
 	
 		my $p = Data::ZPath->new('foo');
 		ok( $p->isa('Data::ZPath'), 'constructed an object' );
+	};
+
+	tests 'method `evaluate` (context behavior)' => sub {
+
+		my $p = Data::ZPath->new('foo,bar');
+		my $root = {
+			foo => 1,
+			bar => 2,
+		};
+
+		my @list_ctx = $p->evaluate($root);
+		is( scalar @list_ctx, 2, 'returns list of nodes in list context' );
+		ok( $list_ctx[0]->isa('Data::ZPath::Node'),
+			'list context elements are nodes' );
+
+		my $scalar_ctx = $p->evaluate($root);
+		ok( $scalar_ctx->isa('Data::ZPath::NodeList'),
+			'returns node list object in scalar context' );
+		is( [ map $_->value, $scalar_ctx->all ], [ 1, 2 ],
+			'scalar context node list wraps all nodes' );
 	};
 };
 
