@@ -337,3 +337,101 @@ sub dump {
 }
 
 1;
+
+__END__
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Data::ZPath::Node - Node wrapper used by Data::ZPath
+
+=head1 DESCRIPTION
+
+Objects of this class wrap underlying Perl or XML values and
+provide traversal and type-coercion helpers used while evaluating
+ZPath expressions.
+
+=head1 METHODS
+
+=head2 C<< from_root($value) >>
+
+Create a new node from a root value.
+
+=head2 C<< raw >>
+
+Return the wrapped underlying value.
+
+=head2 C<< parent >>
+
+Return the parent node, or undef if this is a root node.
+
+=head2 C<< key >>
+
+Return the key/name/index token used to reach this node.
+
+=head2 C<< id >>
+
+Return a stable identifier string for deduplication where possible.
+
+=head2 C<< ix >>
+
+Return the numeric sibling index for this node when available.
+
+=head2 C<< index >>
+
+Alias for C<ix>.
+
+=head2 C<< slot >>
+
+Return an optional coderef used as a mutable scalar slot.
+
+=head2 C<< with_slot($coderef) >>
+
+Attach a slot coderef to the node and return the node.
+
+=head2 C<< type >>
+
+Return the ZPath type name of the wrapped value.
+
+=head2 C<< value >>
+
+Return the wrapped value, normalizing boolean-like values.
+
+=head2 C<< primitive_value >>
+
+Return a scalar representation suitable for ZPath primitive
+comparisons.
+
+=head2 C<< string_value >>
+
+Return the wrapped value coerced to a string, if defined.
+
+=head2 C<< number_value >>
+
+Return the wrapped value coerced to a number, if numeric.
+
+=head2 C<< children >>
+
+Return wrapped child nodes.
+
+For XML elements this returns child nodes, optionally excluding
+whitespace-only text nodes depending on
+C<$Data::ZPath::XmlIgnoreWS>. For Perl hashes and arrays this
+returns wrapped value children.
+
+=head2 C<< attributes >>
+
+Return wrapped XML attributes for an XML element.
+
+=head2 C<< name >>
+
+Return the node name used by path matching.
+
+=head2 C<< dump >>
+
+Return a plain Perl data structure for debugging.
+
+=cut
