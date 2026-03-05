@@ -3,9 +3,46 @@ use warnings;
 
 package Data::ZPath::_Node;
 
+use B ();
 use Scalar::Util qw(blessed refaddr reftype isdual);
 
 our $VERSION = '0.001';
+
+sub _created_as_string {
+    my $value = shift;
+    defined $value
+        and not ref $value
+        and not _is_bool( $value )
+        and not _created_as_number( $value );
+}
+
+sub _created_as_number {
+    my $value = shift;
+    return !!0 unless defined $value;
+    return !!0 if ref $value;
+    return !!0 if utf8::is_utf8( $value );
+    my $b_obj = B::svref_2object(\$value);
+    my $flags = $b_obj->FLAGS;
+    return !!1 if $flags & ( B::SVp_IOK() | B::SVp_NOK() ) and not( $flags & B::SVp_POK() );
+    return !!0;
+}
+
+sub _is_bool {
+    my $value = shift;
+
+    my $ref = ref($value) || '';
+    if ($ref eq 'SCALAR' and defined $$value) {
+        return !!1 if $$value eq 0;
+        return !!1 if $$value eq 1;
+    }
+
+    return !!0 unless defined $value;
+    return !!0 if $ref;
+    return !!0 unless isdual( $value );
+    return !!1 if  $value and "$value" eq '1' and $value + 0 == 1;
+    return !!1 if not $value and "$value" eq q'' and $value + 0 == 0;
+    return !!0;
+}
 
 sub from_root {
     my ($class, $obj) = @_;
@@ -81,8 +118,8 @@ sub type {
     return 'map'     if ref($x) eq 'HASH';
     return 'list'    if ref($x) eq 'ARRAY';
     return 'boolean' if _is_bool($x);
-    return 'number'  if !ref($x) && Scalar::Util::looks_like_number($x);
-    return 'string'  if !ref($x);
+    return 'number'  if _created_as_number($x);
+    return 'string'  if _created_as_string($x);
     return 'object';
 }
 
@@ -108,28 +145,10 @@ sub primitive_value {
     }
 
     if ( ref $x and reftype($x) and reftype($x) eq 'SCALAR' ) {
-        return $$x;
+        return !!$$x if $x eq 0 || $x eq 1;
     }
 
     return $x;
-}
-
-sub _is_bool {
-    my ($value) = @_;
-    return !!0 unless defined $value;
-    my $was_ref = ref $value ? 1 : 0;
-
-    if ( ref $value and reftype($value) and reftype($value) eq 'SCALAR' ) {
-        $value = $$value;
-        $was_ref = 1;
-    }
-
-    return !!0 unless $was_ref;
-    return !!0 if ref $value;
-    return !!0 unless isdual($value);
-    return !!1 if $value and "$value" eq '1' and $value + 0 == 1;
-    return !!1 if not $value and "$value" eq q'' and $value + 0 == 0;
-    return !!0;
 }
 
 sub string_value {
