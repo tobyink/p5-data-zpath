@@ -103,6 +103,47 @@ Footer
 	);
 };
 
+
+subtest 'shorthand close tag {{/}} closes last open block' => sub {
+	my $tmpl = Text::ZTemplate->new(
+		string => '{{# product }}{{# features/* }}[{{ . }}]{{/}}{{/}}',
+		escape => 'raw',
+	);
+
+	my $out = $tmpl->process({
+		product => {
+			features => [ 'A', 'B' ],
+		},
+	});
+
+	is( $out, '[A][B]', 'each shorthand close matches the nearest open block' );
+};
+
+subtest 'includes => 0 disables include tags' => sub {
+	like(
+		dies {
+			Text::ZTemplate->new(
+				string => '{{> part.tmpl }}',
+				escape => 'raw',
+				includes => 0,
+			);
+		},
+		qr/Template includes are disabled/,
+		'include tag fails when includes are disabled',
+	);
+};
+
+subtest 'includes => 0 does not affect regular expressions or blocks' => sub {
+	my $tmpl = Text::ZTemplate->new(
+		string => '{{# product }}{{ name }}{{/}}',
+		escape => 'raw',
+		includes => 0,
+	);
+
+	is( $tmpl->process({ product => { name => 'Widget' } }), 'Widget',
+		'normal rendering still works when includes are disabled' );
+};
+
 subtest 'circular includes are rejected' => sub {
 	like(
 		dies {

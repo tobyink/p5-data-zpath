@@ -37,6 +37,7 @@ sub new {
 		template => $string // q{},
 		current_file => $file,
 		seen_files => {},
+		includes => exists $args{includes} ? $args{includes} : 1,
 	);
 
 	my $self = bless {
@@ -63,6 +64,7 @@ sub _parse_template {
 	my $template = $args{template};
 	my $current_file = $args{current_file};
 	my $seen_files = $args{seen_files} || {};
+	my $includes = $args{includes};
 
 	my $root = [];
 	my @stack = ({
@@ -111,17 +113,22 @@ sub _parse_template {
 			my $inner = $1;
 			$inner =~ s/^\s+//;
 			$inner =~ s/\s+\z//;
-			my $parsed = _parse_expression_spec($inner);
 			my $current = pop @stack;
 			if ( not defined $current or not defined $current->{expr} ) {
 				croak qq{Mismatched close tag {{/$inner}}};
 			}
-			if ( $current->{expr} ne $parsed->{expr} ) {
-				croak qq{Mismatched close tag {{/$inner}} for {{$current->{expr}}}};
+			if ( length $inner ) {
+				my $parsed = _parse_expression_spec($inner);
+				if ( $current->{expr} ne $parsed->{expr} ) {
+					croak qq{Mismatched close tag {{/$inner}} for {{$current->{expr}}}};
+				}
 			}
 		}
 		elsif ( length $trimmed ) {
 			if ( $trimmed =~ /^>(.*)\z/s ) {
+				croak 'Template includes are disabled'
+					unless $includes;
+
 				my $include_path = $1;
 				$include_path =~ s/^\s+//;
 				$include_path =~ s/\s+\z//;
@@ -145,6 +152,7 @@ sub _parse_template {
 					template => $include_text,
 					current_file => $include_file,
 					seen_files => $seen_files,
+					includes => $includes,
 				);
 				delete $seen_files->{$key};
 
@@ -396,6 +404,7 @@ Substitutions: C<{{ expression }}>
 
 Blocks/loops/tests:
 C<{{# expression }} ... {{/ expression }}>
+or C<{{# expression }} ... {{/}}>
 
 =item *
 
@@ -407,6 +416,7 @@ C<{{ expression :: raw }}>
 
 Includes:
 C<{{> path/to/include.tmpl }}>
+(can be disabled with C<includes =E<gt> 0>)
 
 =back
 
@@ -416,14 +426,17 @@ C<process>.
 
 =head1 METHODS
 
-=head2 C<< new( string => $template, escape => $mode ) >>
+=head2 C<< new( string => $template, escape => $mode, includes => $bool ) >>
 
-=head2 C<< new( file => $path, escape => $mode ) >>
+=head2 C<< new( file => $path, escape => $mode, includes => $bool ) >>
 
 Create a compiled template from a UTF-8 string or file.
 
 C<$mode> defaults to C<html>. Valid values are C<html> and
 C<raw>.
+
+C<$bool> defaults to true. Set C<includes =E<gt> 0> to
+disable support for C<{{> ... }}> tags.
 
 =head2 C<< process( $data ) >>
 
