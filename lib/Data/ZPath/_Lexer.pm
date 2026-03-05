@@ -75,13 +75,9 @@ sub _tokenize {
 			'<=' => 'LE',
 		);
 		if ( exists $two_char{$pair} ) {
-			my $after = $i + 2 < $n ? $c[$i + 2] : undef;
-			if ( $ws_on_both->( $prev, $after ) ) {
-				$push->({ k => $two_char{$pair}, v => $pair });
-				$i += 2;
-				next;
-			}
-			croak "Binary operator '$pair' requires whitespace around it";
+			$push->({ k => $two_char{$pair}, v => $pair });
+			$i += 2;
+			next;
 		}
 
 		my %one_char = (
@@ -95,18 +91,29 @@ sub _tokenize {
 			'<' => 'LT',
 		);
 		if ( exists $one_char{$ch} ) {
-			if ( $ws_on_both->( $prev, $next ) ) {
-				$push->({ k => $one_char{$ch}, v => $ch });
-				$i++;
-				next;
+			# Keep arithmetic operators strict to avoid ambiguity with path syntax.
+			if ( $ch eq '+' || $ch eq '-' || $ch eq '%' ) {
+				if ( $ws_on_both->( $prev, $next ) ) {
+					$push->({ k => $one_char{$ch}, v => $ch });
+					$i++;
+					next;
+				}
+				croak "Binary operator '$ch' requires whitespace around it";
 			}
-			croak "Binary operator '$ch' requires whitespace around it";
+
+			$push->({ k => $one_char{$ch}, v => $ch });
+			$i++;
+			next;
 		}
 
 		if ( $ch eq '/' and $ws_on_both->( $prev, $next ) ) {
 			$push->({ k => 'SLASH', v => '/' });
 			$i++;
 			next;
+		}
+
+		if ( $ch eq '/' and ( _is_ws($prev) xor _is_ws($next) ) ) {
+			croak "Binary operator '/' requires whitespace around it";
 		}
 
 		if ( $ch eq '/' ) { $push->({ k => 'SLASH_PATH', v => '/' }); $i++; next; }

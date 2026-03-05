@@ -280,6 +280,21 @@ sub _parse_path_segment {
     elsif ($k eq 'STAR_PATH')  { $lx->next_tok; $seg = { k => 'star' }; }
     elsif ($k eq 'STARSTAR')   { $lx->next_tok; $seg = { k => 'desc' }; }
     elsif ($k eq 'INDEX')      { my $i = $lx->next_tok->{v}; $seg = { k => 'index', i => $i }; }
+    elsif ($k eq 'NUMBER')     { my $i = $lx->next_tok->{v}; $seg = { k => 'index', i => $i }; }
+    elsif ($k eq 'NAME' && $lx->peek_kind_n(1) eq 'LPAREN') {
+        my $name = $lx->next_tok->{v};
+        $lx->expect('LPAREN');
+        my @args;
+        if ($lx->peek_kind ne 'RPAREN') {
+            push @args, _parse_expression($lx);
+            while ($lx->peek_kind eq 'COMMA') {
+                $lx->next_tok;
+                push @args, _parse_expression($lx);
+            }
+        }
+        $lx->expect('RPAREN');
+        $seg = { k => 'fnseg', n => $name, a => \@args };
+    }
     elsif ($k eq 'NAME')       { my $n = $lx->next_tok->{v}; $seg = { k => 'name', n => $n }; }
     else {
         croak "Unexpected token in path segment: $k";

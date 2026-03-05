@@ -211,7 +211,7 @@ sub _eval_path {
             @next = @current;
         }
         elsif ($seg->{k} eq 'parent') {
-            @next = grep { $_->parent } map { $_->parent } @current;
+            @next = grep { defined $_ } map { $_->parent } @current;
             @next = _dedup_nodes(@next);
         }
         elsif ($seg->{k} eq 'ancestors') {
@@ -251,6 +251,15 @@ sub _eval_path {
                 push @kids, $ch[$idx] if defined $ch[$idx];
             }
             @next = _dedup_nodes(@kids);
+        }
+        elsif ($seg->{k} eq 'fnseg') {
+            my @out;
+            for my $n (@current) {
+                my $seg_ctx = $ctx->with_nodeset([$n], \\@current);
+                my @res = _eval_fn({ t => 'fn', n => $seg->{n}, a => $seg->{a} }, $seg_ctx);
+                push @out, @res;
+            }
+            @next = _dedup_nodes(@out);
         }
         elsif ($seg->{k} eq 'name') {
             my $name = $seg->{n};
