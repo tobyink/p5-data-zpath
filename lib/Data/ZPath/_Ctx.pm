@@ -9,7 +9,7 @@ use Scalar::Util qw(blessed);
 our $VERSION = '0.001';
 
 sub new {
-	my ($class, $root) = @_;
+	my ( $class, $root ) = @_;
 
 	my $root_node;
 	if ( blessed($root) and $root->isa('Data::ZPath::_Node') ) {
@@ -27,7 +27,7 @@ sub new {
 }
 
 sub with_nodeset {
-	my ($self, $nodeset, $parentset) = @_;
+	my ( $self, $nodeset, $parentset ) = @_;
 	return bless {
 		%$self,
 		nodeset   => $nodeset,

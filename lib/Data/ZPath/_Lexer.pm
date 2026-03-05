@@ -8,7 +8,7 @@ use Carp qw(croak);
 our $VERSION = '0.001';
 
 sub new {
-	my ($class, $src) = @_;
+	my ( $class, $src ) = @_;
 	my $self = bless {
 		src   => $src,
 		i     => 0,
@@ -24,24 +24,24 @@ sub peek_kind   { $_[0]->{toks}->[$_[0]->{pos}]->{k} }
 sub peek_kind_n { $_[0]->{toks}->[$_[0]->{pos} + $_[1]]->{k} }
 
 sub next_tok {
-	my ($self) = @_;
+	my ( $self ) = @_;
 	return $self->{toks}->[$self->{pos}++];
 }
 
 sub expect {
-	my ($self, $k) = @_;
+	my ( $self, $k ) = @_;
 	my $t = $self->next_tok;
 	croak "Expected $k, got $t->{k}" unless $t->{k} eq $k;
 	return $t;
 }
 
 sub _is_ws {
-	my ($c) = @_;
+	my ( $c ) = @_;
 	return defined $c && $c =~ /\s/;
 }
 
 sub _tokenize {
-	my ($self, $src) = @_;
+	my ( $self, $src ) = @_;
 	my @t;
 
 	my @c = split //, $src;
@@ -247,7 +247,7 @@ sub _tokenize {
 }
 
 sub _unescape_char {
-	my ($c) = @_;
+	my ( $c ) = @_;
 	return "\n" if $c eq 'n';
 	return "\r" if $c eq 'r';
 	return "\t" if $c eq 't';
@@ -255,7 +255,7 @@ sub _unescape_char {
 }
 
 sub _read_name {
-	my ($chars, $i) = @_;
+	my ( $chars, $i ) = @_;
 	my $n = @$chars;
 
 	my %delim = map { $_ => 1 } split //, "\n\r\t()[]/,=&|!<># ";
