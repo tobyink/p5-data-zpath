@@ -96,8 +96,11 @@ for my $case ( @cases ) {
 			return;
 		}
 
+		my @expected = $case->{expect} =~ m{^/}
+			? _run_expr( $case, \%roots, 'expect' )
+			: _parse_expected_tokens( $case->{expect} );
+
 		my @actual = _run_expr( $case, \%roots );
-		my @expected = _parse_expected_tokens( $case->{expect} );
 
 		is( [ @actual ], [ @expected ], 'result tokens match upstream expectation' );
 	};
@@ -106,9 +109,10 @@ for my $case ( @cases ) {
 done_testing;
 
 sub _run_expr {
-	my ( $case, $roots ) = @_;
+	my ( $case, $roots, $key ) = @_;
+	$key ||= 'expr';
 	my $root = $roots->{ $case->{mode} };
-	my $path = Data::ZPath->new( $case->{expr} );
+	my $path = Data::ZPath->new( $case->{$key} );
 	my @raw = $path->all( $root );
 	return map { _stringify_actual_token( $_ ) } @raw;
 }
