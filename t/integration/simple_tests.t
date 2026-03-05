@@ -67,7 +67,7 @@ subtest 'top-level comma list and union' => sub {
 };
 
 
-subtest 'evaluate accepts Data::ZPath::_Node as context' => sub {
+subtest 'evaluate accepts Data::ZPath::Node as context' => sub {
 	my $h = { foo => [
 		{ bar => 10 },
 		{ bar => 20 },
