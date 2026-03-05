@@ -14,6 +14,8 @@ use Data::ZPath::_Node;
 use Data::ZPath::_Parser;
 use Data::ZPath::_ScalarProxy;
 
+our $DEBUG = 0;
+
 our $VERSION = '0.001';
 
 our @CARP_NOT = qw(
@@ -29,8 +31,9 @@ for my $pkg ( @CARP_NOT ) {
     *{"${pkg}::CARP_NOT"} = \@CARP_NOT;
 }
 
-our $Epsilon   = 1e-08;
-our $UseBigInt = !!1;
+our $Epsilon      = 1e-08;
+our $UseBigInt    = !!1;
+our $XmlIgnoreWS  = !!1;
 
 sub new {
     my ($class, $expr) = @_;
@@ -368,27 +371,52 @@ sub _eval_path {
 
         # qualifiers
         if ($seg->{q} && @{$seg->{q}}) {
-            my @filtered;
-            for (my $i = 0; $i < @next; $i++) {
-                my $node = $next[$i];
-                my $ns_ctx = $ctx->with_nodeset(\@next, \@current);
+            QUALIFIER:
+            for my $q (@{$seg->{q}}) {
+                if (
+                    $q->{t}
+                    and $q->{t} eq 'num'
+                    and $q->{v} =~ /\A[0-9]+\z/
+                ) {
+                    my $idx = 0 + $q->{v};
 
-                my $ok = 1;
-                for my $q (@{$seg->{q}}) {
-                    my @r = _eval_expr($q, $ns_ctx->with_nodeset([$node], \@next));
-
-                    if ( $q->{t} and $q->{t} eq 'path' ) {
-                        $ok &&= scalar(@r) ? 1 : 0;
+                    if (
+                        @next
+                        and blessed($next[0]->raw)
+                        and $next[0]->raw->isa('XML::LibXML::Node')
+                    ) {
+                        @next = defined $next[$idx] ? ( $next[$idx] ) : ();
                     }
                     else {
-                        $ok &&= _truthy($r[0]);
+                        my @picked;
+                        for my $node (@next) {
+                            my @ch = grep { $_->type ne 'attr' } $node->children;
+                            push @picked, $ch[$idx] if defined $ch[$idx];
+                        }
+                        @next = @picked;
                     }
 
-                    last unless $ok;
+                    next QUALIFIER;
                 }
-                push @filtered, $node if $ok;
+
+                my @filtered;
+                for (my $i = 0; $i < @next; $i++) {
+                    my $node = $next[$i];
+                    my $ns_ctx = $ctx->with_nodeset(\@next, \@current);
+                    my @r = _eval_expr($q, $ns_ctx->with_nodeset([$node], \@next));
+
+                    my $ok;
+                    if ( $q->{t} and $q->{t} eq 'path' ) {
+                        $ok = scalar(@r) ? 1 : 0;
+                    }
+                    else {
+                        $ok = _truthy($r[0]);
+                    }
+
+                    push @filtered, $node if $ok;
+                }
+                @next = @filtered;
             }
-            @next = @filtered;
         }
 
         $parentset = \@current;
@@ -878,7 +906,7 @@ sub _equals {
         return $av == $bv;
     }
 
-    my @string_like = qw( string text attr comment );
+    my @string_like = qw( string text attr comment element );
     if ( grep { $a_type eq $_ } @string_like
     and  grep { $b_type eq $_ } @string_like ) {
         my $av = $a->string_value;
@@ -992,6 +1020,10 @@ smallest scope possible.
 If true, the C<< number("123...") >> function will return a L<Math::BigInt>
 object for any numbers too big to be represented accurately by Perl's native
 numeric type. Defaults to true.
+
+=item C<< $Data::ZPath::XmlIgnoreWS >>
+
+Ignore XML text nodes consisting only of whitespace. Default true.
 
 =cut
 

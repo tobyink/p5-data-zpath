@@ -83,9 +83,9 @@ ok( scalar( @cases ) > 0, 'parsed cases from tests.txt' );
 
 use Data::Dumper;
 do {
-    #local $Data::Dumper::Sortkeys = 1;
-    #my $node = Data::ZPath::_Node->from_root( $roots{JSON} );
-    #diag Dumper( $node->dump );
+    local $Data::Dumper::Sortkeys = 1;
+#    my $node = Data::ZPath::_Node->from_root( $roots{XML} );
+#    diag Dumper( $node->dump );
 };
 
 for my $case ( @cases ) {

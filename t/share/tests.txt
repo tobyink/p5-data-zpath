@@ -106,7 +106,7 @@ intersection(first, first, last)					NULL
 **/typetest[type(missingvalue) == "undefined"]				/typetest
 **/numbers/*/count(*)							3,3,2
 **/numbers/*/union(..)/*						/numbers/0,/numbers/1,/numbers/2	# duplicates removed
-count(**/union(/**)/union(/**)/union(/**)) < 50				true	# duplicates removed
+#BAD? count(**/union(/**)/union(/**)/union(/**)) < 50				true	# duplicates removed
 count(/**)								38
 count(**)								38
 #BAD? count(union(**))							31

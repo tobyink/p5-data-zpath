@@ -270,7 +270,7 @@ sub children {
     }
 
     if (blessed($x) && $x->isa('XML::LibXML::Element')) {
-        my @kids = $x->childNodes;
+        my @kids = $Data::ZPath::XmlIgnoreWS ? $x->nonBlankChildNodes : $x->childNodes;
         my %count;
         return map { Data::ZPath::_Node->_wrap($_, $self, $_->nodeName, $count{$_->nodeName}++ || 0) } @kids;
     }
@@ -329,6 +329,7 @@ sub dump {
         '@type'      => $self->type,
         '@id'        => $self->id,
         '@key'       => $self->key,
+        '@index'     => $self->index,
         '@value'     => $self->primitive_value,
         children     => [ map $_->dump, $self->children ],
         attributes   => [ map $_->dump, $self->attributes ],
