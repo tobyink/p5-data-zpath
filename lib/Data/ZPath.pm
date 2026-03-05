@@ -35,7 +35,7 @@ our $UseBigInt    = !!1;
 our $XmlIgnoreWS  = !!1;
 
 sub new {
-	my ($class, $expr) = @_;
+	my ( $class, $expr ) = @_;
 	croak "Missing expression" unless defined $expr;
 
 	my $self = bless {
@@ -47,7 +47,7 @@ sub new {
 }
 
 sub evaluate {
-	my ($self, $root, %opts) = @_;
+	my ( $self, $root, %opts ) = @_;
 
 	my $ctx = Data::ZPath::_Ctx->new($root);
 	my @out;
@@ -61,26 +61,26 @@ sub evaluate {
 }
 
 sub all {
-	my ($self, $root) = @_;
+	my ( $self, $root ) = @_;
 	map defined ? $_->value : $_, $self->evaluate( $root );
 }
 
 sub first {
-	my ($self, $root) = @_;
+	my ( $self, $root ) = @_;
 	my @vals = $self->evaluate($root, first => 1);
 	return $vals[0]->value if defined $vals[0];
 	return undef;
 }
 
 sub last {
-	my ($self, $root) = @_;
+	my ( $self, $root ) = @_;
 	my @vals = $self->evaluate($root);
 	return $vals[-1]->value if defined $vals[-1];
 	return undef;
 }
 
 sub each {
-	my ($self, $root, $cb) = @_;
+	my ( $self, $root, $cb ) = @_;
 	croak "each() requires a coderef" unless ref($cb) eq 'CODE';
 
 	my $ctx = Data::ZPath::_Ctx->new($root);
