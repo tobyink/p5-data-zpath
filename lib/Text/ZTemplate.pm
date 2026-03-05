@@ -9,7 +9,7 @@ use Data::ZPath;
 use File::Basename qw(dirname);
 use File::Spec;
 
-our $VERSION = '0.001';
+our $VERSION = '0.001000';
 
 sub new {
 	my ( $class, %args ) = @_;

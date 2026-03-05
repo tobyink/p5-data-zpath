@@ -5,7 +5,7 @@ package Data::ZPath::_Lexer;
 
 use Carp qw(croak);
 
-our $VERSION = '0.001';
+our $VERSION = '0.001000';
 
 sub new {
 	my ( $class, $src ) = @_;

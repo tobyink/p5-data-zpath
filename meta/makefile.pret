@@ -2,7 +2,7 @@
 
 @prefix : <http://ontologi.es/doap-deps#>.
 
-`Data-ZPath`0
+`Data-ZPath`
 	:runtime-requirement    [ :on "perl 5.010001"^^:CpanId ];
 	:runtime-requirement    [ :on "Regexp::Util"^^:CpanId ];
 	:runtime-requirement    [ :on "Scalar::Util 1.26"^^:CpanId ];

@@ -6,7 +6,7 @@ package Data::ZPath::_Ctx;
 use Data::ZPath::Node;
 use Scalar::Util qw(blessed);
 
-our $VERSION = '0.001';
+our $VERSION = '0.001000';
 
 sub new {
 	my ( $class, $root ) = @_;

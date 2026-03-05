@@ -15,7 +15,7 @@ use Data::ZPath::_Evaluate;
 
 our $DEBUG = 0;
 
-our $VERSION = '0.001';
+our $VERSION = '0.001000';
 
 our @CARP_NOT = qw(
 	Data::ZPath::_Ctx

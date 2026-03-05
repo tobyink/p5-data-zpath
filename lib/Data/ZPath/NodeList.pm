@@ -5,7 +5,7 @@ package Data::ZPath::NodeList;
 
 use Scalar::Util qw(blessed);
 
-our $VERSION = '0.001';
+our $VERSION = '0.001000';
 
 sub new {
 	my ( $class, @nodes ) = @_;

@@ -6,7 +6,7 @@ package Data::ZPath::Node;
 use B ();
 use Scalar::Util qw(blessed refaddr reftype isdual);
 
-our $VERSION = '0.001';
+our $VERSION = '0.001000';
 
 sub _created_as_string {
 	my $value = shift;

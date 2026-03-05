@@ -6,7 +6,7 @@ package Data::ZPath::_Parser;
 use Carp qw(croak);
 use Data::ZPath::_Lexer;
 
-our $VERSION = '0.001';
+our $VERSION = '0.001000';
 
 sub _parse_top_level_terms {
 	my ( $src ) = @_;
