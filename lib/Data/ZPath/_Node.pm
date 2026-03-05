@@ -3,7 +3,7 @@ use warnings;
 
 package Data::ZPath::_Node;
 
-use Scalar::Util qw(blessed refaddr);
+use Scalar::Util qw(blessed refaddr reftype isdual);
 
 our $VERSION = '0.001';
 
@@ -80,7 +80,7 @@ sub type {
 	return 'null'    unless defined $x;
     return 'map'     if ref($x) eq 'HASH';
     return 'list'    if ref($x) eq 'ARRAY';
-    return 'boolean' if !ref($x) && ($x eq '0' || $x eq '1');
+    return 'boolean' if _is_bool($x);
     return 'number'  if !ref($x) && Scalar::Util::looks_like_number($x);
     return 'string'  if !ref($x);
     return 'object';
@@ -103,11 +103,33 @@ sub primitive_value {
     if (blessed($x) && $x->isa('XML::LibXML::Element')) {
         return $x->textContent;
     }
-    if (blessed($x) && $x->isa('XML::LibXML::Text')) {
-        return $x->data;
-    }
+	if (blessed($x) && $x->isa('XML::LibXML::Text')) {
+		return $x->data;
+	}
 
-    return $x;
+	if ( ref $x and reftype($x) and reftype($x) eq 'SCALAR' ) {
+		return $$x;
+	}
+
+	return $x;
+}
+
+sub _is_bool {
+	my ($value) = @_;
+	return !!0 unless defined $value;
+	my $was_ref = ref $value ? 1 : 0;
+
+	if ( ref $value and reftype($value) and reftype($value) eq 'SCALAR' ) {
+		$value = $$value;
+		$was_ref = 1;
+	}
+
+	return !!0 unless $was_ref;
+	return !!0 if ref $value;
+	return !!0 unless isdual($value);
+	return !!1 if $value and "$value" eq '1' and $value + 0 == 1;
+	return !!1 if not $value and "$value" eq q'' and $value + 0 == 0;
+	return !!0;
 }
 
 sub string_value {
