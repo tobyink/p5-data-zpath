@@ -100,6 +100,13 @@ L<Data::ZPath::Node> objects.
 
 Returns all nodes as a list.
 
+=head2 C<< values >>
+
+Returns all node values as a list.
+
+In list context, this returns one value per node. In scalar context,
+Perl list operators return the final value in the list.
+
 =head2 C<< first >>
 
 Returns the first node, or C<undef>.
@@ -111,6 +118,46 @@ Returns the last node, or C<undef>.
 =head2 C<< find( $zpath ) >>
 
 Calls C<find> on all nodes in the list and returns the list of results.
+
+=head2 C<< grep( \&callback ) >>
+
+Filters nodes using a callback and returns matching nodes.
+
+The callback receives no positional arguments, but C<$_> is locally set
+to each node's value while it runs.
+
+In list context, this returns matching nodes as a plain list. In scalar
+context, this returns a new C<Data::ZPath::NodeList> object.
+
+  my @nodes = $list->grep( sub {
+    defined and /foo/
+  } );
+
+=head2 C<< map( \&callback ) >>
+
+Maps each node through a callback and returns replacement nodes.
+
+The callback receives no positional arguments, but C<$_> is locally set
+to each node's value while it runs.
+
+Each callback result is normalized as follows:
+
+=over
+
+=item * C<Data::ZPath::NodeList> objects are flattened into nodes.
+
+=item * C<Data::ZPath::Node> objects are kept as-is.
+
+=item * Any other value becomes a node via C<< Data::ZPath::Node->from_root >>.
+
+=back
+
+In list context, this returns mapped nodes as a plain list. In scalar
+context, this returns a new C<Data::ZPath::NodeList> object.
+
+  my $mapped = $list->map( sub {
+    uc
+  } );
 
 =head1 AUTHOR
 
