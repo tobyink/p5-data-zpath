@@ -10,6 +10,8 @@ use Scalar::Util qw(blessed refaddr);
 
 use Data::ZPath::Node;
 
+our $VERSION = '0.001000';
+
 sub _pattern_to_regexp {
 	my ( $pat ) = @_;
 
