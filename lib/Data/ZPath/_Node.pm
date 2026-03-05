@@ -53,12 +53,12 @@ sub _is_bool {
 }
 
 sub from_root {
-	my ($class, $obj) = @_;
+	my ( $class, $obj ) = @_;
 	return $class->_wrap($obj);
 }
 
 sub _wrap {
-	my ($class, $obj, $parent, $key, $ix) = @_;
+	my ( $class, $obj, $parent, $key, $ix ) = @_;
 
 	my $is_xml = blessed($obj) && $obj->isa('XML::LibXML::Node');
 	my $id;
@@ -101,18 +101,18 @@ sub ix     { $_[0]{ix} }
 sub index  { $_[0]{ix} }
 
 sub slot {
-	my ($self) = @_;
+	my ( $self ) = @_;
 	return $self->{slot};
 }
 
 sub with_slot {
-	my ($self, $slot) = @_;
+	my ( $self, $slot ) = @_;
 	$self->{slot} = $slot;
 	return $self;
 }
 
 sub type {
-	my ($self, $x) = @_;
+	my ( $self, $x ) = @_;
 	$x = $self->{raw} if @_ == 1;
 
 	if ( blessed($x) && $x->isa('CBOR::Free::Tagged') ) {
@@ -153,7 +153,7 @@ sub type {
 
 # Essentially returns raw, but normalizes booleans
 sub value {
-	my ($self, $x) = @_;
+	my ( $self, $x ) = @_;
 	$x = $self->{raw} if @_ == 1;
 
 	if ( ref $x and reftype($x) and reftype($x) eq 'SCALAR' ) {
@@ -170,7 +170,7 @@ sub value {
 }
 
 sub primitive_value {
-	my ($self, $x) = @_;
+	my ( $self, $x ) = @_;
 	$x = $self->{raw} if @_ == 1;
 
 	if ( blessed($x) && $x->isa('CBOR::Free::Tagged') ) {
@@ -213,7 +213,7 @@ sub primitive_value {
 }
 
 sub string_value {
-	my ($self, $x) = @_;
+	my ( $self, $x ) = @_;
 	$x = $self->{raw} if @_ == 1;
 
 	if ( blessed($x) && $x->isa('CBOR::Free::Tagged') ) {
@@ -246,7 +246,7 @@ sub string_value {
 }
 
 sub number_value {
-	my ($self) = @_;
+	my ( $self ) = @_;
 	my $v = $self->primitive_value;
 	return undef unless defined $v && Scalar::Util::looks_like_number($v);
 
@@ -259,7 +259,7 @@ sub number_value {
 }
 
 sub children {
-	my ($self) = @_;
+	my ( $self ) = @_;
 	my $x = $self->{raw};
 
 	# XML document: treat documentElement as child
@@ -305,7 +305,7 @@ sub children {
 }
 
 sub attributes {
-	my ($self) = @_;
+	my ( $self ) = @_;
 	my $x = $self->{raw};
 	return unless blessed($x) && $x->isa('XML::LibXML::Element');
 	my @attrs = $x->attributes;
@@ -313,7 +313,7 @@ sub attributes {
 }
 
 sub name {
-	my ($self) = @_;
+	my ( $self ) = @_;
 	my $x = $self->{raw};
 
 	if ( blessed($x) && $x->isa('XML::LibXML::Attr') )    { return '@' . $x->nodeName; }
@@ -324,7 +324,7 @@ sub name {
 }
 
 sub dump {
-	my ($self) = @_;
+	my ( $self ) = @_;
 	return {
 		'@type'      => $self->type,
 		'@id'        => $self->id,
