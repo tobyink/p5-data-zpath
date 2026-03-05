@@ -225,56 +225,56 @@ sub _parse_path_expr {
 
     my @segs;
 
-	# path can start with "/" or with a segment.
-	if ($lx->peek_kind eq 'SLASH_PATH') {
-		$lx->next_tok; # consume '/'
-		push @segs, { k => 'root', q => [] };
+    # path can start with "/" or with a segment.
+    if ($lx->peek_kind eq 'SLASH_PATH') {
+        $lx->next_tok; # consume '/'
+        push @segs, { k => 'root', q => [] };
 
-		if ($lx->peek_kind eq 'LBRACK') {
-			$segs[-1]->{q} = _parse_qualifiers($lx);
-		}
+        if ($lx->peek_kind eq 'LBRACK') {
+            $segs[-1]->{q} = _parse_qualifiers($lx);
+        }
 
-		if (
-			$lx->peek_kind eq 'EOF'
-			or $lx->peek_kind eq 'COMMA'
-			or $lx->peek_kind eq 'RPAREN'
-			or $lx->peek_kind eq 'RBRACK'
-			or $lx->peek_kind eq 'QMARK'
-			or $lx->peek_kind eq 'COLON'
-			or $lx->peek_kind eq 'EQEQ'
-			or $lx->peek_kind eq 'NEQ'
-			or $lx->peek_kind eq 'GE'
-			or $lx->peek_kind eq 'LE'
-			or $lx->peek_kind eq 'GT'
-			or $lx->peek_kind eq 'LT'
-			or $lx->peek_kind eq 'ANDAND'
-			or $lx->peek_kind eq 'OROR'
-			or $lx->peek_kind eq 'PLUS'
-			or $lx->peek_kind eq 'MINUS'
-			or $lx->peek_kind eq 'STAR'
-			or $lx->peek_kind eq 'SLASH'
-			or $lx->peek_kind eq 'PCT'
-			or $lx->peek_kind eq 'BAND'
-			or $lx->peek_kind eq 'BOR'
-			or $lx->peek_kind eq 'BXOR'
-		) {
-			return { t => 'path', s => \@segs };
-		}
-	}
-	elsif ($lx->peek_kind eq 'LBRACK') {
-		my $seg = { k => 'dot', q => _parse_qualifiers($lx) };
-		push @segs, $seg;
-		return { t => 'path', s => \@segs }
-			if $lx->peek_kind eq 'EOF' || $lx->peek_kind eq 'COMMA' || $lx->peek_kind eq 'RPAREN' || $lx->peek_kind eq 'RBRACK';
-	}
+        if (
+            $lx->peek_kind eq 'EOF'
+            or $lx->peek_kind eq 'COMMA'
+            or $lx->peek_kind eq 'RPAREN'
+            or $lx->peek_kind eq 'RBRACK'
+            or $lx->peek_kind eq 'QMARK'
+            or $lx->peek_kind eq 'COLON'
+            or $lx->peek_kind eq 'EQEQ'
+            or $lx->peek_kind eq 'NEQ'
+            or $lx->peek_kind eq 'GE'
+            or $lx->peek_kind eq 'LE'
+            or $lx->peek_kind eq 'GT'
+            or $lx->peek_kind eq 'LT'
+            or $lx->peek_kind eq 'ANDAND'
+            or $lx->peek_kind eq 'OROR'
+            or $lx->peek_kind eq 'PLUS'
+            or $lx->peek_kind eq 'MINUS'
+            or $lx->peek_kind eq 'STAR'
+            or $lx->peek_kind eq 'SLASH'
+            or $lx->peek_kind eq 'PCT'
+            or $lx->peek_kind eq 'BAND'
+            or $lx->peek_kind eq 'BOR'
+            or $lx->peek_kind eq 'BXOR'
+        ) {
+            return { t => 'path', s => \@segs };
+        }
+    }
+    elsif ($lx->peek_kind eq 'LBRACK') {
+        my $seg = { k => 'dot', q => _parse_qualifiers($lx) };
+        push @segs, $seg;
+        return { t => 'path', s => \@segs }
+            if $lx->peek_kind eq 'EOF' || $lx->peek_kind eq 'COMMA' || $lx->peek_kind eq 'RPAREN' || $lx->peek_kind eq 'RBRACK';
+    }
 
-	if ( $lx->peek_kind ne 'SLASH_PATH'
-		&& $lx->peek_kind ne 'EOF'
-		&& $lx->peek_kind ne 'COMMA'
-		&& $lx->peek_kind ne 'RPAREN'
-		&& $lx->peek_kind ne 'RBRACK' ) {
-		push @segs, _parse_path_segment($lx);
-	}
+    if ( $lx->peek_kind ne 'SLASH_PATH'
+        && $lx->peek_kind ne 'EOF'
+        && $lx->peek_kind ne 'COMMA'
+        && $lx->peek_kind ne 'RPAREN'
+        && $lx->peek_kind ne 'RBRACK' ) {
+        push @segs, _parse_path_segment($lx);
+    }
 
     while ($lx->peek_kind eq 'SLASH_PATH') {
         $lx->next_tok;

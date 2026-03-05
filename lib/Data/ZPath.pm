@@ -68,17 +68,17 @@ sub each {
     for my $term (@{$self->{terms}}) {
         my @res = _eval_expr($term, $ctx);
 
-		for my $node (@res) {
-			my $slot = $node->slot;
-			croak "each() can only mutate Perl map/list scalars (not XML)" unless $slot && ref($slot) eq 'CODE';
+        for my $node (@res) {
+            my $slot = $node->slot;
+            croak "each() can only mutate Perl map/list scalars (not XML)" unless $slot && ref($slot) eq 'CODE';
 
-			tie my $proxy, 'Data::ZPath::_ScalarProxy', $slot;
-			for ($proxy) {
-				$cb->();
-			}
-			untie $proxy;
-		}
-	}
+            tie my $proxy, 'Data::ZPath::_ScalarProxy', $slot;
+            for ($proxy) {
+                $cb->();
+            }
+            untie $proxy;
+        }
+    }
 
     return;
 }
@@ -102,11 +102,11 @@ sub _eval_expr {
     }
     if ($t eq 'un') {
         my @v = _eval_expr($ast->{e}, $ctx);
-		my $x = _truthy($v[0]);
+        my $x = _truthy($v[0]);
 
-		if ( $ast->{op} eq '!' and $ast->{e} and $ast->{e}->{t} and $ast->{e}->{t} eq 'path' ) {
-			$x = @v ? _truthy_value($v[0]) : 0;
-		}
+        if ( $ast->{op} eq '!' and $ast->{e} and $ast->{e}->{t} and $ast->{e}->{t} eq 'path' ) {
+            $x = @v ? _truthy_value($v[0]) : 0;
+        }
 
         if ($ast->{op} eq '!') {
             return (Data::ZPath::_Node->_wrap($x ? 0 : 1, undef, undef));
@@ -135,25 +135,25 @@ sub _eval_expr {
             ));
         }
 
-		# Equality (loose-ish, but stable)
-		if ($op eq '==' || $op eq '!=') {
-			my $eq = 0;
+        # Equality (loose-ish, but stable)
+        if ($op eq '==' || $op eq '!=') {
+            my $eq = 0;
 
-			if (@l && @r) {
-				OUTER:
-				for my $ln (@l) {
-					for my $rn (@r) {
-						if ( _equals($ln, $rn) ) {
-							$eq = 1;
-							last OUTER;
-						}
-					}
-				}
-			}
+            if (@l && @r) {
+                OUTER:
+                for my $ln (@l) {
+                    for my $rn (@r) {
+                        if ( _equals($ln, $rn) ) {
+                            $eq = 1;
+                            last OUTER;
+                        }
+                    }
+                }
+            }
 
-			$eq = !$eq if $op eq '!=';
-			return (Data::ZPath::_Node->_wrap($eq ? 1 : 0, undef, undef));
-		}
+            $eq = !$eq if $op eq '!=';
+            return (Data::ZPath::_Node->_wrap($eq ? 1 : 0, undef, undef));
+        }
 
         # Relations (numeric if both numeric, else string)
         if ($op =~ /^(>=|<=|>|<)$/) {
@@ -331,21 +331,21 @@ sub _eval_path {
                 my $node = $next[$i];
                 my $ns_ctx = $ctx->with_nodeset(\@next, \@current);
 
-				my $ok = 1;
-				for my $q (@{$seg->{q}}) {
-					my @r = _eval_expr($q, $ns_ctx->with_nodeset([$node], \@next));
+                my $ok = 1;
+                for my $q (@{$seg->{q}}) {
+                    my @r = _eval_expr($q, $ns_ctx->with_nodeset([$node], \@next));
 
-					if ( $q->{t} and $q->{t} eq 'path' ) {
-						$ok &&= scalar(@r) ? 1 : 0;
-					}
-					else {
-						$ok &&= _truthy($r[0]);
-					}
+                    if ( $q->{t} and $q->{t} eq 'path' ) {
+                        $ok &&= scalar(@r) ? 1 : 0;
+                    }
+                    else {
+                        $ok &&= _truthy($r[0]);
+                    }
 
-					last unless $ok;
-				}
-				push @filtered, $node if $ok;
-			}
+                    last unless $ok;
+                }
+                push @filtered, $node if $ok;
+            }
             @next = @filtered;
         }
 
@@ -791,21 +791,21 @@ sub _node_to_primitive {
 }
 
 sub _truthy {
-	my ($n) = @_;
-	return 0 unless $n;
+    my ($n) = @_;
+    return 0 unless $n;
 
-	# Path-selected nodes are truthy by existence.
-	my $id = $n->id;
-	return 1 if defined $id;
+    # Path-selected nodes are truthy by existence.
+    my $id = $n->id;
+    return 1 if defined $id;
 
-	return _truthy_value($n);
+    return _truthy_value($n);
 }
 
 sub _truthy_value {
-	my ($n) = @_;
-	return 0 unless $n;
+    my ($n) = @_;
+    return 0 unless $n;
 
-	my $v = $n->primitive_value;
+    my $v = $n->primitive_value;
 
     return 0 if !defined $v;
     return 0 if $v eq '' && !ref($v);
