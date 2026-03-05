@@ -73,13 +73,14 @@ subtest 'evaluate accepts Data::ZPath::Node as context' => sub {
 		{ bar => 20 },
 	] };
 
-	my $p1 = Data::ZPath->new('foo');
+	my $p1 = Data::ZPath->new('foo/*');
 	my $p2 = Data::ZPath->new('./bar');
-	my $p3 = Data::ZPath->new('foo/bar');
+	my $p3 = Data::ZPath->new('foo/*/bar');
 
 	my @results1 = map { $p2->all($_) } $p1->evaluate($h);
 	my @results2 = $p3->all($h);
-
+	
+	is(scalar(@results2), 2, 'correct count');
 	is(\@results1, \@results2, 'node context matches direct query');
 };
 
@@ -100,6 +101,18 @@ subtest 'xml attributes' => sub {
 
     my $p2 = Data::ZPath->new('/table/@class');
     is([map $_->value, $p2->all($dom)], ['defn'], 'attribute node value');
+};
+
+subtest 'find method' => sub {
+	my $h = { foo => [
+		{ bar => 10 },
+		{ bar => 20 },
+	] };
+
+	my $n  = Data::ZPath::Node->from_root($h);
+	my $nr = $n->find('foo/*')->find('./bar');
+
+	is( [ map $_->value, $nr->all ], [ 10, 20 ], 'find method');
 };
 
 done_testing;

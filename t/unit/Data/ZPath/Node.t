@@ -65,6 +65,11 @@ describe "class `$CLASS`" => sub {
 		ok( exists $dump->{children}, 'dump includes children' );
 	};
 
+	tests 'method `find`' => sub {
+		my $node = Data::ZPath::Node->from_root( { foo => 10 } );
+		is( $node->find('foo')->first->value, 10, 'find works' );
+	};
+
 	tests 'method `id`' => sub {
 		my $node = Data::ZPath::Node->from_root( { foo => 1 } );
 		ok( defined $node->id, 'reference root has stable id' );

@@ -33,6 +33,12 @@ describe "class `$CLASS`" => sub {
 		is( [ Data::ZPath::NodeList->new->all ], [], 'all on empty list is empty' );
 	};
 
+	tests 'method `find`' => sub {
+		my $node = Data::ZPath::Node->from_root( { foo => 10 } );
+		my $list = Data::ZPath::NodeList->new( $node );
+		is( $list->find('foo')->first->value, 10, 'find works' );
+	};
+
 	tests 'method `first`' => sub {
 		my $node1 = Data::ZPath::Node->from_root('a');
 		my $node2 = Data::ZPath::Node->from_root('b');

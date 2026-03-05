@@ -57,11 +57,7 @@ sub evaluate {
 
 	for my $term (@{$self->{terms}}) {
 		push @out, Data::ZPath::_Evaluate::_eval_expr($term, $ctx);
-
-		if ( $opts{first} and @out ) {
-			return @out if $wantarray;
-			last;
-		}
+		last if ( $opts{first} and @out );
 	}
 
 	return @out if $wantarray;
@@ -70,21 +66,21 @@ sub evaluate {
 
 sub all {
 	my ( $self, $root ) = @_;
-	map defined ? $_->value : $_, $self->evaluate( $root );
+	map $_->value, $self->evaluate( $root )->all;
 }
 
 sub first {
 	my ( $self, $root ) = @_;
-	my @vals = $self->evaluate($root, first => 1);
-	return $vals[0]->value if defined $vals[0];
-	return undef;
+	my $found = $self->evaluate($root, first => 1)->first
+		or return undef;
+	return $found->value;
 }
 
 sub last {
 	my ( $self, $root ) = @_;
-	my @vals = $self->evaluate($root);
-	return $vals[-1]->value if defined $vals[-1];
-	return undef;
+	my $found = $self->evaluate($root)->last
+		or return undef;
+	return $found->value;
 }
 
 sub each {
@@ -114,12 +110,6 @@ __END__
 =pod
 
 =encoding utf-8
-
-=head1 NAME
-
-Data::ZPath - ZPath implementation for Perl
-
-=pod
 
 =head1 NAME
 
