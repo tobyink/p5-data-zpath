@@ -270,15 +270,15 @@ sub _eval_path {
             }
             @next = _dedup_nodes(@kids);
         }
-        elsif ($seg->{k} eq 'fnseg') {
-            my @out;
-            for my $n (@current) {
-                my $seg_ctx = $ctx->with_nodeset([$n], \\@current);
-                my @res = _eval_fn({ t => 'fn', n => $seg->{n}, a => $seg->{a} }, $seg_ctx);
-                push @out, @res;
-            }
-            @next = @out;
-        }
+		elsif ($seg->{k} eq 'fnseg') {
+			my @out;
+			for my $n (@current) {
+				my $seg_ctx = $ctx->with_nodeset([$n], \\@current);
+				my @res = _eval_fn({ t => 'fn', n => $seg->{n}, a => $seg->{a} }, $seg_ctx);
+				push @out, @res;
+			}
+			@next = _dedup_identity(@out);
+		}
         elsif ($seg->{k} eq 'name') {
             my $name = $seg->{n};
 
@@ -782,6 +782,19 @@ sub _dedup_nodes {
         push @out, $n;
     }
     return @out;
+}
+
+sub _dedup_identity {
+	my @nodes = @_;
+	my %seen;
+	my @out;
+	for my $n (@nodes) {
+		my $id = $n->id;
+		my $k = defined $id ? $id : 'node:' . refaddr($n);
+		next if $seen{$k}++;
+		push @out, $n;
+	}
+	return @out;
 }
 
 sub _node_to_primitive {

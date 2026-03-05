@@ -65,6 +65,43 @@ subtest 'top-level comma list and union' => sub {
     ok(scalar($p2->all($h)) >= 3, 'union merges duplicates when nodes repeat');
 };
 
+
+subtest 'recursive union does not hang' => sub {
+	my $h = {
+		first   => 'John',
+		last    => 'doe',
+		age     => 26,
+		address => {
+			street   => 'naist street',
+			city     => 'Nara',
+			postcode => '630-0192',
+		},
+		numbers => [
+			{ type => 'iPhone', number => '0123-4567-8888', things => [ 'foo', 'bar' ] },
+			{ type => 'home', number => '0123-4567-8910', things => [ 'biff', 'boff' ] },
+			{ type => 'work', number => '0123-9999-8910' },
+		],
+	};
+
+	my $p = Data::ZPath->new('count(**/union(/**)/union(/**)/union(/**)) < 50');
+	my @out;
+	my $timed_out = 0;
+	{
+		local $SIG{ALRM} = sub { die "timeout\n" };
+		alarm 2;
+		eval {
+			@out = $p->all($h);
+			1;
+		} or do {
+			$timed_out = ( $@ and $@ =~ /timeout/ ) ? 1 : 0;
+			die $@ unless $timed_out;
+		};
+		alarm 0;
+	}
+
+	is($timed_out, 0, 'expression completed in bounded time');
+	is(\@out, [1], 'expression result matches expectation');
+};
 subtest 'operators require whitespace' => sub {
     like(
         dies { Data::ZPath->new('1+2') },
