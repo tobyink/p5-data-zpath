@@ -10,7 +10,7 @@ use Scalar::Util  qw(blessed refaddr looks_like_number);
 
 use Data::ZPath::_Ctx;
 use Data::ZPath::_Lexer;
-use Data::ZPath::_Node;
+use Data::ZPath::Node;
 use Data::ZPath::_Parser;
 use Data::ZPath::_ScalarProxy;
 
@@ -21,7 +21,7 @@ our $VERSION = '0.001';
 our @CARP_NOT = qw(
 	Data::ZPath::_Ctx
 	Data::ZPath::_Lexer
-	Data::ZPath::_Node
+	Data::ZPath::Node
 	Data::ZPath::_Parser
 	Data::ZPath::_ScalarProxy
 );
@@ -119,10 +119,10 @@ sub _eval_expr {
 	my $t = $ast->{t};
 
 	if ( $t eq 'num' ) {
-		return Data::ZPath::_Node->_wrap($ast->{v});
+		return Data::ZPath::Node->_wrap($ast->{v});
 	}
 	if ( $t eq 'str' ) {
-		return Data::ZPath::_Node->_wrap($ast->{v});
+		return Data::ZPath::Node->_wrap($ast->{v});
 	}
 	if ( $t eq 'path' ) {
 		return _eval_path($ast, $ctx);
@@ -135,12 +135,12 @@ sub _eval_expr {
 		my $x = _truthy($v[0]);
 
 		if ( $ast->{op} eq '!' ) {
-			return (Data::ZPath::_Node->_wrap($x ? !!0 : !!1));
+			return (Data::ZPath::Node->_wrap($x ? !!0 : !!1));
 		}
 		if ( $ast->{op} eq '~' ) {
 			my $n = _to_number($v[0]);
 			return unless defined $n;
-			return Data::ZPath::_Node->_wrap((~(int($n))));
+			return Data::ZPath::Node->_wrap((~(int($n))));
 		}
 		croak "Unknown unary op $ast->{op}";
 	}
@@ -156,7 +156,7 @@ sub _eval_expr {
 		if ( $op eq '&&' || $op eq '||' ) {
 			my $lb = _truthy($lv);
 			my $rb = _truthy($rv);
-			return (Data::ZPath::_Node->_wrap(
+			return (Data::ZPath::Node->_wrap(
 				($op eq '&&') ? ($lb && $rb ? !!1 : !!0) : ($lb || $rb ? !!1 : !!0),
 				undef, undef
 			));
@@ -179,7 +179,7 @@ sub _eval_expr {
 			}
 
 			$eq = !$eq if $op eq '!=';
-			return (Data::ZPath::_Node->_wrap($eq ? !!1 : !!0));
+			return (Data::ZPath::Node->_wrap($eq ? !!1 : !!0));
 		}
 
 		# Relations (numeric if both numeric, else string)
@@ -200,7 +200,7 @@ sub _eval_expr {
 					:  $op eq '>'  ? $ls gt $rs
 					:               $ls lt $rs);
 			}
-			return (Data::ZPath::_Node->_wrap($ok ? !!1 : !!0));
+			return (Data::ZPath::Node->_wrap($ok ? !!1 : !!0));
 		}
 
 		# Bitwise ops (ints)
@@ -211,7 +211,7 @@ sub _eval_expr {
 			my $li = int($ln);
 			my $ri = int($rn);
 			my $res = ($op eq '&') ? ($li & $ri) : ($op eq '|') ? ($li | $ri) : ($li ^ $ri);
-			return (Data::ZPath::_Node->_wrap($res));
+			return (Data::ZPath::Node->_wrap($res));
 		}
 
 		# Arithmetic (scalar only)
@@ -220,7 +220,7 @@ sub _eval_expr {
 			my $rn = _to_number($rv);
 
 			if ( $op eq '%' and $ln=~/\./ || $rn=~/\./ ) {
-				return Data::ZPath::_Node->_wrap(_floaty_modulus($ln, $rn));
+				return Data::ZPath::Node->_wrap(_floaty_modulus($ln, $rn));
 			}
 
 			return () unless defined $ln && defined $rn;
@@ -231,7 +231,7 @@ sub _eval_expr {
 				$op eq '/' ? ($rn == 0 ? undef : ($ln / $rn)) :
 				($rn == 0 ? undef : ($ln % $rn));
 			return unless defined $res;
-			return Data::ZPath::_Node->_wrap($res);
+			return Data::ZPath::Node->_wrap($res);
 		}
 
 		croak "Unknown binary op $op";
@@ -336,7 +336,7 @@ sub _eval_path {
 						my $raw = $n->raw;
 						next unless blessed($raw) && $raw->isa('XML::LibXML::Element');
 						my $a = $raw->getAttributeNode($attr_name);
-						push @attrs, Data::ZPath::_Node->_wrap($a, $n, '@'.$attr_name) if $a;
+						push @attrs, Data::ZPath::Node->_wrap($a, $n, '@'.$attr_name) if $a;
 					}
 					@next = _dedup_nodes(@attrs);
 				}
@@ -435,17 +435,17 @@ sub _eval_fn {
 		return _eval_expr($args[$i], $local_ctx // $ctx);
 	};
 
-	return Data::ZPath::_Node->_wrap(!!0) if $name eq 'false';
-	return Data::ZPath::_Node->_wrap(!!1) if $name eq 'true';
-	return Data::ZPath::_Node->_wrap(undef) if $name eq 'null';
+	return Data::ZPath::Node->_wrap(!!0) if $name eq 'false';
+	return Data::ZPath::Node->_wrap(!!1) if $name eq 'true';
+	return Data::ZPath::Node->_wrap(undef) if $name eq 'null';
 
 	if ( $name eq 'count' ) {
 		if ( @args ) {
 			my @r = $eval_arg->(0);
-			return Data::ZPath::_Node->_wrap(scalar(@r));
+			return Data::ZPath::Node->_wrap(scalar(@r));
 		}
 		my $scope = $ctx->parentset // $ns;
-		return Data::ZPath::_Node->_wrap(scalar(@$scope));
+		return Data::ZPath::Node->_wrap(scalar(@$scope));
 	}
 
 	if ( $name eq 'index' ) {
@@ -455,10 +455,10 @@ sub _eval_fn {
 			my @out;
 			for my $n (@r) {
 				if ( defined( my $i = $n->ix ) ) {
-					push @out, Data::ZPath::_Node->_wrap(0+$i);
+					push @out, Data::ZPath::Node->_wrap(0+$i);
 				}
 				elsif ( defined( my $k = $n->key ) ) {
-					push @out, Data::ZPath::_Node->_wrap(0+$k) if $k =~ /^[0-9]+$/;
+					push @out, Data::ZPath::Node->_wrap(0+$k) if $k =~ /^[0-9]+$/;
 				}
 			}
 			return @out;
@@ -470,16 +470,16 @@ sub _eval_fn {
 
 		my $scope = $ctx->parentset // $ns;
 		my $ix = $cur->ix;
-		return Data::ZPath::_Node->_wrap($ix) if defined $ix;
+		return Data::ZPath::Node->_wrap($ix) if defined $ix;
 		my $id = $cur->id;
 		return unless defined $id;
 		for ( my $i = 0; $i < @$scope; $i++ ) {
 			my $nid = $scope->[$i]->id;
 			if ( defined $nid && $nid eq $id ) {
-				return Data::ZPath::_Node->_wrap($i);
+				return Data::ZPath::Node->_wrap($i);
 			}
 		}
-		return Data::ZPath::_Node->_wrap(0);
+		return Data::ZPath::Node->_wrap(0);
 	}
 
 	if ( $name eq 'key' ) {
@@ -487,12 +487,12 @@ sub _eval_fn {
 			my @r = $eval_arg->(0);
 			return map {
 				my $k = $_->key;
-				defined $k ? Data::ZPath::_Node->_wrap($k) : ()
+				defined $k ? Data::ZPath::Node->_wrap($k) : ()
 			} @r;
 		}
 		my $cur = $ns->[0];
 		return unless $cur && defined $cur->key;
-		return Data::ZPath::_Node->_wrap($cur->key);
+		return Data::ZPath::Node->_wrap($cur->key);
 	}
 
 	if ( $name eq 'union' ) {
@@ -521,14 +521,14 @@ sub _eval_fn {
 	if ( $name eq 'is-first' ) {
 		my $cur = $ns->[0];
 		return unless $cur && $cur->parent;
-		return Data::ZPath::_Node->_wrap($cur->ix == 0);
+		return Data::ZPath::Node->_wrap($cur->ix == 0);
 	}
 
 	if ( $name eq 'is-last' ) {
 		my @i = _eval_fn({ t=>'fn', n=>'index', a=>[] }, $ctx);
 		my @c = _eval_fn({ t=>'fn', n=>'count', a=>[] }, $ctx);
 		return () unless @i && @c;
-		return (Data::ZPath::_Node->_wrap($i[0]->primitive_value == ($c[0]->primitive_value - 1) ? !!1 : !!0));
+		return (Data::ZPath::Node->_wrap($i[0]->primitive_value == ($c[0]->primitive_value - 1) ? !!1 : !!0));
 	}
 
 	if ( $name eq 'next' || $name eq 'prev' ) {
@@ -564,13 +564,13 @@ sub _eval_fn {
 			my @r = $eval_arg->(0);
 			return map {
 				my $s = $_->string_value;
-				defined $s ? Data::ZPath::_Node->_wrap($s) : ()
+				defined $s ? Data::ZPath::Node->_wrap($s) : ()
 			} @r;
 		}
 		my $cur = $ns->[0];
 		return () unless $cur;
 		my $s = $cur->string_value;
-		return defined $s ? (Data::ZPath::_Node->_wrap($s)) : ();
+		return defined $s ? (Data::ZPath::Node->_wrap($s)) : ();
 	}
 
 	if ( $name eq 'number' ) {
@@ -578,13 +578,13 @@ sub _eval_fn {
 			my @r = $eval_arg->(0);
 			return map {
 				my $n = $_->number_value;
-				defined $n ? Data::ZPath::_Node->_wrap($n) : ()
+				defined $n ? Data::ZPath::Node->_wrap($n) : ()
 			} @r;
 		}
 		my $cur = $ns->[0];
 		return unless $cur;
 		my $n = $cur->number_value;
-		return defined $n ? Data::ZPath::_Node->_wrap($n) : ();
+		return defined $n ? Data::ZPath::Node->_wrap($n) : ();
 	}
 
 	if ( $name eq 'value' ) {
@@ -592,24 +592,24 @@ sub _eval_fn {
 			my @r = $eval_arg->(0);
 			return map {
 				my $v = $_->primitive_value;
-				Data::ZPath::_Node->_wrap($v)
+				Data::ZPath::Node->_wrap($v)
 			} @r;
 		}
 		my $cur = $ns->[0];
 		return unless $cur;
-		return Data::ZPath::_Node->_wrap($cur->primitive_value);
+		return Data::ZPath::Node->_wrap($cur->primitive_value);
 	}
 
 	if ( $name eq 'type' ) {
 		if ( @args ) {
 			my @r = $eval_arg->(0);
-			return Data::ZPath::_Node->_wrap('undefined') unless @r;
+			return Data::ZPath::Node->_wrap('undefined') unless @r;
 			return map {
-				Data::ZPath::_Node->_wrap($_->type)
+				Data::ZPath::Node->_wrap($_->type)
 			} @r;
 		}
 		my $cur = $ns->[0];
-		return Data::ZPath::_Node->_wrap($cur ? $cur->type : 'undefined');
+		return Data::ZPath::Node->_wrap($cur ? $cur->type : 'undefined');
 	}
 
 	# Math helpers: map numeric over input set
@@ -627,7 +627,7 @@ sub _eval_fn {
 			my $v = $name eq 'ceil'  ? POSIX::ceil($x)
 				  : $name eq 'floor' ? POSIX::floor($x)
 				  :                    int($x + ($x >= 0 ? 0.5 : -0.5));
-			push @out, Data::ZPath::_Node->_wrap($v);
+			push @out, Data::ZPath::Node->_wrap($v);
 		}
 		return @out;
 	}
@@ -648,16 +648,16 @@ sub _eval_fn {
 		if ( $name eq 'sum' ) {
 			my $s = 0;
 			$s += $_ for @in;
-			return Data::ZPath::_Node->_wrap($s);
+			return Data::ZPath::Node->_wrap($s);
 		}
 		if ( $name eq 'min' ) {
 			my $m = $in[0];
 			( $_ < $m ) and ( $m = $_ ) for @in;
-			return Data::ZPath::_Node->_wrap($m);
+			return Data::ZPath::Node->_wrap($m);
 		}
 		my $m = $in[0];
 		( $_ > $m ) and ( $m = $_ ) for @in;
-		return Data::ZPath::_Node->_wrap($m);
+		return Data::ZPath::Node->_wrap($m);
 	}
 
 	# String helpers
@@ -681,7 +681,7 @@ sub _eval_fn {
 			$s =~ s/>/&gt;/g;
 			$s =~ s/"/&quot;/g;
 			$s =~ s/'/&apos;/g;
-			Data::ZPath::_Node->_wrap($s)
+			Data::ZPath::Node->_wrap($s)
 		} @in;
 	}
 
@@ -699,7 +699,7 @@ sub _eval_fn {
 			$s =~ s/&quot;/"/g;
 			$s =~ s/&apos;/'/g;
 			$s =~ s/&amp;/&/g;
-			Data::ZPath::_Node->_wrap($s)
+			Data::ZPath::Node->_wrap($s)
 		} @in;
 	}
 
@@ -721,7 +721,7 @@ sub _eval_fn {
 		my @in = @args > 1 ? $eval_arg->(1) : @$ns;
 		return map {
 			my $v = $_->primitive_value;
-			Data::ZPath::_Node->_wrap(sprintf($f, $v))
+			Data::ZPath::Node->_wrap(sprintf($f, $v))
 		} @in;
 	}
 
@@ -732,7 +732,7 @@ sub _eval_fn {
 		return map {
 			my $s = $_->string_value // '';
 			my $pos = $name eq 'index-of' ? index($search, $s) : rindex($search, $s);
-			Data::ZPath::_Node->_wrap($pos)
+			Data::ZPath::Node->_wrap($pos)
 		} @in;
 	}
 
@@ -740,7 +740,7 @@ sub _eval_fn {
 		my @in = @args ? $eval_arg->(0) : @$ns;
 		return map {
 			my $s = $_->string_value // '';
-			Data::ZPath::_Node->_wrap(length($s))
+			Data::ZPath::Node->_wrap(length($s))
 		} @in;
 	}
 
@@ -749,7 +749,7 @@ sub _eval_fn {
 		return map {
 			my $s = $_->string_value // '';
 			$s = $name eq 'upper-case' ? uc($s) : lc($s);
-			Data::ZPath::_Node->_wrap($s)
+			Data::ZPath::Node->_wrap($s)
 		} @in;
 	}
 
@@ -760,7 +760,7 @@ sub _eval_fn {
 		my $len   = ($eval_arg->(2))[0]->number_value // 0;
 		return map {
 			my $s = $_->string_value // '';
-			Data::ZPath::_Node->_wrap(substr($s, int($start), int($len)))
+			Data::ZPath::Node->_wrap(substr($s, int($start), int($len)))
 		} @in;
 	}
 
@@ -772,7 +772,7 @@ sub _eval_fn {
 		my @in = @args > 1 ? $eval_arg->(1) : @$ns;
 		return map {
 			my $s = $_->string_value // '';
-			Data::ZPath::_Node->_wrap(($s =~ $re) ? 1 : 0)
+			Data::ZPath::Node->_wrap(($s =~ $re) ? 1 : 0)
 		} @in;
 	}
 
@@ -785,7 +785,7 @@ sub _eval_fn {
 		my @in = @args > 2 ? $eval_arg->(2) : @$ns;
 		return map {
 			my $s = $_->string_value // '';
-			Data::ZPath::_Node->_wrap(_string_replace($s, $re, $rep))
+			Data::ZPath::Node->_wrap(_string_replace($s, $re, $rep))
 		} @in;
 	}
 
@@ -794,7 +794,7 @@ sub _eval_fn {
 		my $joiner = ($eval_arg->(0))[0]->string_value // '';
 		my @in = @args > 1 ? $eval_arg->(1) : @$ns;
 		my @ss = map { $_->string_value // '' } @in;
-		return Data::ZPath::_Node->_wrap(join($joiner, @ss));
+		return Data::ZPath::Node->_wrap(join($joiner, @ss));
 	}
 
 	# XML functions
@@ -806,7 +806,7 @@ sub _eval_fn {
 			if ( blessed($raw) && $raw->can('namespaceURI') ) {
 				$u = $raw->namespaceURI // '';
 			}
-			Data::ZPath::_Node->_wrap($u)
+			Data::ZPath::Node->_wrap($u)
 		} @in;
 	}
 
@@ -820,7 +820,7 @@ sub _eval_fn {
 			} else {
 				$ln = $_->name // '';
 			}
-			Data::ZPath::_Node->_wrap($ln)
+			Data::ZPath::Node->_wrap($ln)
 		} @in;
 	}
 
@@ -831,7 +831,7 @@ sub _eval_fn {
 		for my $n (@in) {
 			my $raw = $n->raw;
 			if ( blessed($raw) and $raw->isa('CBOR::Free::Tagged') ) {
-				push @out, Data::ZPath::_Node->_wrap($raw->[0]);
+				push @out, Data::ZPath::Node->_wrap($raw->[0]);
 			}
 		}
 		return @out;

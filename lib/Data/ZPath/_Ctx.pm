@@ -3,7 +3,7 @@ use warnings;
 
 package Data::ZPath::_Ctx;
 
-use Data::ZPath::_Node;
+use Data::ZPath::Node;
 use Scalar::Util qw(blessed);
 
 our $VERSION = '0.001';
@@ -12,11 +12,11 @@ sub new {
 	my ($class, $root) = @_;
 
 	my $root_node;
-	if ( blessed($root) and $root->isa('Data::ZPath::_Node') ) {
+	if ( blessed($root) and $root->isa('Data::ZPath::Node') ) {
 		$root_node = $root;
 	}
 	else {
-		$root_node = Data::ZPath::_Node->from_root($root);
+		$root_node = Data::ZPath::Node->from_root($root);
 	}
 
 	return bless {
